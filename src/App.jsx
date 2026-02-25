@@ -1,10 +1,9 @@
 import React from 'react';
+import AppRoutes from './routes/AppRoutes';
 
 function App() {
   return (
-    <div>
-      <h1>Plataforma BIM - A funcionar! 🚀</h1>
-    </div>
+    <AppRoutes />
   );
 }
 
