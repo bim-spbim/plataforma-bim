@@ -13,6 +13,7 @@ const MailIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="non
 const SearchIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>;
 const UsersIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>;
 const CloseIcon = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>;
+const BoxIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>;
 
 export default function Dashboard() {
   const { id } = useParams();
@@ -29,14 +30,19 @@ export default function Dashboard() {
   const [projectMembers, setProjectMembers] = useState([]);
   const [isManageAccessOpen, setIsManageAccessOpen] = useState(false);
 
+  // --- Estados da Nova Planta ---
   const [title, setTitle] = useState('');
   const [file, setFile] = useState(null);
+  const [ifcFile, setIfcFile] = useState(null); // Agora é o ARQUIVO IFC
   const [uploading, setUploading] = useState(false);
+  const [uploadProgressText, setUploadProgressText] = useState('');
   
+  // --- Estados da Edição de Planta ---
   const [isEditPlanModalOpen, setIsEditPlanModalOpen] = useState(false);
   const [planToEdit, setPlanToEdit] = useState(null);
   const [editTitle, setEditTitle] = useState('');
   const [editFile, setEditFile] = useState(null);
+  const [editIfcFile, setEditIfcFile] = useState(null); // Agora é o ARQUIVO IFC
   const [isEditing, setIsEditing] = useState(false); 
 
   const [isDarkMode, setIsDarkMode] = useState(localStorage.getItem('spbim_theme') === 'dark');
@@ -68,89 +74,7 @@ export default function Dashboard() {
     return floorPlans.filter(plan => plan.title.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [floorPlans, searchQuery]);
 
-  const openEditPlanModal = (plan, e) => {
-    e.stopPropagation();
-    setPlanToEdit(plan);
-    setEditTitle(plan.title);
-    setEditFile(null); 
-    setIsEditPlanModalOpen(true);
-  };
-
-  const handleSaveEditedPlan = async (e) => {
-    e.preventDefault();
-    if (!editTitle) return alert("O título é obrigatório.");
-    setIsEditing(true);
-
-    try {
-        let finalImageUrl = planToEdit.image_url;
-        let finalFileName = planToEdit.file_name;
-        let logDetails = `Renomeou a planta para "${editTitle}"`;
-
-        if (editFile) {
-            const fileExt = editFile.name.split('.').pop();
-            const safeFileName = `${Date.now()}_edited_${Math.random().toString(36).substring(7)}.${fileExt}`;
-            const { error: uploadError } = await supabase.storage.from('plantas').upload(safeFileName, editFile);
-            if (uploadError) throw uploadError;
-
-            const { data: urlData } = supabase.storage.from('plantas').getPublicUrl(safeFileName);
-            finalImageUrl = urlData.publicUrl;
-            finalFileName = editFile.name;
-            logDetails += ` e alterou a imagem`;
-        }
-
-        const { error } = await supabase.from('floor_plans').update({
-            title: editTitle,
-            image_url: finalImageUrl,
-            file_name: finalFileName
-        }).eq('id', planToEdit.id);
-
-        if (error) throw error;
-
-        setFloorPlans(floorPlans.map(p => p.id === planToEdit.id ? { ...p, title: editTitle, image_url: finalImageUrl, file_name: finalFileName } : p));
-        await logAction(user.email, 'EDIÇÃO DE PLANTA', logDetails);
-        
-        setIsEditPlanModalOpen(false);
-        setPlanToEdit(null);
-    } catch (error) {
-       alert("Erro ao editar planta: " + error.message);
-    } finally {
-       setIsEditing(false);
-    }
-  };
-
-  const handleUploadPlan = async (e) => {
-    e.preventDefault();
-    if (!file || !title) return;
-    setUploading(true);
-    try {
-      const fileExt = file.name.split('.').pop();
-      const safeFileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage.from('plantas').upload(safeFileName, file);
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage.from('plantas').getPublicUrl(safeFileName);
-      const { data: newPlan, error: dbError } = await supabase.from('floor_plans').insert([{ project_id: id, title: title, file_name: file.name, image_url: urlData.publicUrl }]).select();
-
-      if (dbError) throw dbError;
-      if (newPlan) {
-        setFloorPlans([newPlan[0], ...floorPlans]);
-        await logAction(user.email, 'UPLOAD DE PLANTA', `Adicionou a planta "${title}"`);
-        setTitle(''); setFile(null); setShowUpload(false);
-      }
-    } catch (error) { alert("Erro ao enviar: " + error.message); } 
-    finally { setUploading(false); }
-  };
-
-  const handleDeletePlan = async (planId, planTitle, e) => {
-    e.stopPropagation();
-    if (!window.confirm(`⚠️ Apagar a planta "${planTitle}" e seus ambientes?`)) return;
-    const { error } = await supabase.from('floor_plans').delete().eq('id', planId);
-    if (!error) {
-      setFloorPlans(floorPlans.filter(p => p.id !== planId));
-      await logAction(user.email, 'EXCLUSÃO DE PLANTA', `Apagou a planta "${planTitle}"`);
-    }
-  };
-
+  // --- FUNÇÕES DE EQUIPE ---
   const handleInviteMember = async () => {
     const guestEmail = window.prompt("E-mail do usuário a convidar:");
     if (!guestEmail) return;
@@ -176,6 +100,143 @@ export default function Dashboard() {
       alert("Erro ao remover usuário.");
     }
   };
+
+  // --- UPLOAD DE NOVA PLANTA + MODELO 3D ---
+  const handleUploadPlan = async (e) => {
+    e.preventDefault();
+    if (!file || !title) return;
+    setUploading(true);
+    setUploadProgressText("Fazendo upload da imagem da planta...");
+    
+    try {
+      // 1. Upload da Planta (Imagem)
+      const fileExt = file.name.split('.').pop();
+      const safeFileName = `planta_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage.from('plantas').upload(safeFileName, file);
+      if (uploadError) throw uploadError;
+      const { data: urlData } = supabase.storage.from('plantas').getPublicUrl(safeFileName);
+      
+      // 2. Upload do Arquivo IFC (Se selecionado)
+      let finalIfcUrl = null;
+      if (ifcFile) {
+        setUploadProgressText("Fazendo upload do Modelo 3D (Isso pode demorar)...");
+        const ifcExt = ifcFile.name.split('.').pop();
+        const safeIfcName = `bim_${Date.now()}_${Math.random().toString(36).substring(7)}.${ifcExt}`;
+        const { error: ifcUploadError } = await supabase.storage.from('modelos-bim').upload(safeIfcName, ifcFile);
+        if (ifcUploadError) throw ifcUploadError;
+        
+        const { data: ifcUrlData } = supabase.storage.from('modelos-bim').getPublicUrl(safeIfcName);
+        finalIfcUrl = ifcUrlData.publicUrl;
+      }
+
+      setUploadProgressText("Salvando informações...");
+
+      // 3. Salva no banco de dados
+      const { data: newPlan, error: dbError } = await supabase.from('floor_plans').insert([{ 
+        project_id: id, 
+        title: title, 
+        file_name: file.name, 
+        image_url: urlData.publicUrl,
+        ifc_url: finalIfcUrl // Guarda o link do Supabase aqui
+      }]).select();
+
+      if (dbError) throw dbError;
+      
+      if (newPlan) {
+        setFloorPlans([newPlan[0], ...floorPlans]);
+        await logAction(user.email, 'UPLOAD DE PLANTA', `Adicionou a planta "${title}"`);
+        setTitle(''); setFile(null); setIfcFile(null); setShowUpload(false);
+      }
+    } catch (error) { 
+      alert("Erro ao enviar: " + error.message); 
+    } finally { 
+      setUploading(false); 
+      setUploadProgressText('');
+    }
+  };
+
+
+  // --- EDIÇÃO DE PLANTA BLINDADA ---
+  const openEditPlanModal = (plan, e) => {
+    e.stopPropagation();
+    setPlanToEdit(plan);
+    setEditTitle(plan.title);
+    setEditFile(null);    // Limpa estado de arquivo novo
+    setEditIfcFile(null); // Limpa estado de arquivo novo
+    setIsEditPlanModalOpen(true);
+  };
+
+  const handleSaveEditedPlan = async (e) => {
+    e.preventDefault();
+    if (!editTitle) return alert("O título é obrigatório.");
+    setIsEditing(true);
+
+    try {
+        // COMEÇA GUARDANDO OS VALORES ANTIGOS PARA NÃO PERDERMOS NADA
+        let finalImageUrl = planToEdit.image_url;
+        let finalFileName = planToEdit.file_name;
+        let finalIfcUrl = planToEdit.ifc_url; 
+        
+        let logDetails = `Editou a planta "${editTitle}"`;
+
+        // 1. SÓ atualiza a Imagem se o usuário inseriu um arquivo NOVO
+        if (editFile) {
+            const fileExt = editFile.name.split('.').pop();
+            const safeFileName = `planta_edit_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+            const { error: uploadError } = await supabase.storage.from('plantas').upload(safeFileName, editFile);
+            if (uploadError) throw uploadError;
+
+            const { data: urlData } = supabase.storage.from('plantas').getPublicUrl(safeFileName);
+            finalImageUrl = urlData.publicUrl; // Substitui pela URL nova
+            finalFileName = editFile.name;
+            logDetails += ` e alterou a imagem`;
+        }
+
+        // 2. SÓ atualiza o Modelo IFC se o usuário inseriu um arquivo NOVO
+        if (editIfcFile) {
+            const ifcExt = editIfcFile.name.split('.').pop();
+            const safeIfcName = `bim_edit_${Date.now()}_${Math.random().toString(36).substring(7)}.${ifcExt}`;
+            const { error: ifcUploadError } = await supabase.storage.from('modelos-bim').upload(safeIfcName, editIfcFile);
+            if (ifcUploadError) throw ifcUploadError;
+
+            const { data: ifcUrlData } = supabase.storage.from('modelos-bim').getPublicUrl(safeIfcName);
+            finalIfcUrl = ifcUrlData.publicUrl; // Substitui pela URL nova
+            logDetails += ` e alterou o modelo 3D`;
+        }
+
+        // 3. Salva no banco (Vai enviar os links novos OU os antigos se não mudou)
+        const { error } = await supabase.from('floor_plans').update({
+            title: editTitle,
+            image_url: finalImageUrl,
+            file_name: finalFileName,
+            ifc_url: finalIfcUrl
+        }).eq('id', planToEdit.id);
+
+        if (error) throw error;
+
+        // Atualiza a tela imediatamente
+        setFloorPlans(floorPlans.map(p => p.id === planToEdit.id ? { 
+            ...p, 
+            title: editTitle, 
+            image_url: finalImageUrl, 
+            file_name: finalFileName, 
+            ifc_url: finalIfcUrl 
+        } : p));
+        
+        await logAction(user.email, 'EDIÇÃO DE PLANTA', logDetails);
+        
+        // Reseta tudo e fecha modal
+        setIsEditPlanModalOpen(false);
+        setPlanToEdit(null);
+        setEditFile(null);
+        setEditIfcFile(null);
+    } catch (error) {
+       alert("Erro ao editar planta: " + error.message);
+    } finally {
+       setIsEditing(false);
+    }
+  };
+
 
   if (!project) return <div style={{ padding: '40px', textAlign: 'center' }}>Carregando projeto...</div>;
 
@@ -213,13 +274,29 @@ export default function Dashboard() {
             </button>
           </div>
 
+          {/* FORMULÁRIO DE NOVA PLANTA */}
           {showUpload && (
-            <form onSubmit={handleUploadPlan} style={{ background: cardBg, padding: '20px', borderRadius: '12px', border: cardBorder, marginBottom: '25px', display: 'flex', gap: '15px', alignItems: 'center' }}>
-              <input type="text" placeholder="Nome da Planta (Ex: Térreo)" value={title} onChange={(e)=>setTitle(e.target.value)} required style={{ padding: '12px 15px', border: 'none', background: inputBg, color: textPrimary, borderRadius: '6px', flex: 1, outline: 'none' }} />
-              <input type="file" accept="image/*" onChange={(e)=>setFile(e.target.files[0])} required style={{ color: textSecondary, fontSize: '14px' }} />
-              <button type="submit" disabled={uploading} style={{ background: textPrimary, color: cardBg, border: 'none', padding: '12px 24px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
-                {uploading ? 'Enviando...' : 'Salvar Planta'}
-              </button>
+            <form onSubmit={handleUploadPlan} style={{ background: cardBg, padding: '20px', borderRadius: '12px', border: cardBorder, marginBottom: '25px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                <input type="text" placeholder="Nome da Planta (Ex: Térreo)" value={title} onChange={(e)=>setTitle(e.target.value)} required style={{ padding: '12px 15px', border: 'none', background: inputBg, color: textPrimary, borderRadius: '6px', flex: 1, outline: 'none' }} />
+                
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '12px', color: textSecondary, fontWeight: 'bold', width: '80px' }}>Imagem 2D:</span>
+                  <input type="file" accept="image/*" onChange={(e)=>setFile(e.target.files[0])} required style={{ color: textSecondary, fontSize: '14px' }} />
+                </div>
+              </div>
+              
+              <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', background: inputBg, borderRadius: '6px', flex: 1, padding: '10px 15px', gap: '10px' }}>
+                  <BoxIcon style={{ color: '#00d2ff' }}/>
+                  <span style={{ fontSize: '13px', color: textSecondary, fontWeight: 'bold' }}>Anexar Modelo BIM (.ifc) Opcional:</span>
+                  <input type="file" accept=".ifc" onChange={(e)=>setIfcFile(e.target.files[0])} style={{ color: textPrimary, fontSize: '14px', outline: 'none' }} />
+                </div>
+                <button type="submit" disabled={uploading} style={{ background: textPrimary, color: cardBg, border: 'none', padding: '12px 24px', borderRadius: '6px', fontWeight: 'bold', cursor: uploading ? 'not-allowed' : 'pointer', minWidth: '160px', opacity: uploading ? 0.7 : 1 }}>
+                  {uploading ? 'Enviando...' : 'Salvar Planta'}
+                </button>
+              </div>
+              {uploading && <p style={{ margin: 0, fontSize: '12px', color: '#00d2ff', fontWeight: 'bold', textAlign: 'right' }}>{uploadProgressText}</p>}
             </form>
           )}
 
@@ -268,7 +345,10 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 5px' }}>
-                    <h3 style={{ margin: 0, color: textPrimary, fontSize: '18px', fontWeight: '600' }}>{plan.title}</h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <h3 style={{ margin: 0, color: textPrimary, fontSize: '18px', fontWeight: '600' }}>{plan.title}</h3>
+                      {plan.ifc_url && <span style={{ background: '#00d2ff20', color: '#00d2ff', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>3D</span>}
+                    </div>
                     <div style={{ display: 'flex', gap: '12px' }}>
                       <button onClick={(e) => openEditPlanModal(plan, e)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: textSecondary, padding: 0 }} title="Editar Planta" onMouseEnter={(e) => e.currentTarget.style.color = '#00d2ff'} onMouseLeave={(e) => e.currentTarget.style.color = textSecondary}><EditIcon /></button>
                       <button onClick={(e) => handleDeletePlan(plan.id, plan.title, e)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: textSecondary, padding: 0 }} title="Apagar" onMouseEnter={(e) => e.currentTarget.style.color = '#e63946'} onMouseLeave={(e) => e.currentTarget.style.color = textSecondary}><TrashIcon /></button>
@@ -282,6 +362,48 @@ export default function Dashboard() {
         </>
       )}
 
+      {/* MODAL DE EDIÇÃO DE PLANTA */}
+      {isEditPlanModalOpen && planToEdit && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+            <div style={{ background: cardBg, width: '100%', maxWidth: '500px', borderRadius: '16px', padding: '30px', boxShadow: '0 15px 40px rgba(0,0,0,0.2)', border: cardBorder }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+                    <div><h2 style={{ margin: '0 0 5px 0', color: textPrimary, fontSize: '22px' }}>Editar Planta</h2><p style={{ margin: 0, color: textSecondary, fontSize: '14px' }}>Altere os dados da planta selecionada.</p></div>
+                    <button onClick={() => setIsEditPlanModalOpen(false)} style={{ background: 'none', border: 'none', color: textSecondary, cursor: 'pointer', padding: 0 }}><CloseIcon /></button>
+                </div>
+
+                <form onSubmit={handleSaveEditedPlan} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', color: textPrimary, fontWeight: '600' }}>Nome da Planta</label>
+                        <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} required style={{ width: '100%', padding: '12px', border: 'none', background: inputBg, color: textPrimary, borderRadius: '8px', outline: 'none', boxSizing: 'border-box' }} />
+                    </div>
+                    
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', color: textPrimary, fontWeight: '600' }}>Substituir Imagem 2D (Opcional)</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: inputBg, padding: '10px', borderRadius: '8px', border: cardBorder }}>
+                            <input type="file" accept="image/*" onChange={(e) => setEditFile(e.target.files[0])} style={{ color: textSecondary, fontSize: '14px', flex: 1 }} />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', fontSize: '14px', color: textPrimary, fontWeight: '600' }}>
+                          <BoxIcon style={{ color: '#00d2ff' }}/> Substituir Modelo BIM (Opcional)
+                        </label>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: inputBg, padding: '10px', borderRadius: '8px', border: cardBorder }}>
+                            {planToEdit.ifc_url && <span style={{ fontSize: '12px', color: '#00d2ff' }}>✓ Modelo 3D já anexado. Suba outro para substituir.</span>}
+                            {/* ATENÇÃO AQUI: Agora setEditIfcFile para não bugar a imagem! */}
+                            <input type="file" accept=".ifc" onChange={(e) => setEditIfcFile(e.target.files[0])} style={{ color: textSecondary, fontSize: '14px' }} />
+                        </div>
+                    </div>
+
+                    <button type="submit" disabled={isEditing} style={{ width: '100%', padding: '14px', background: textPrimary, color: cardBg, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: isEditing ? 'not-allowed' : 'pointer', fontSize: '16px', marginTop: '10px', opacity: isEditing ? 0.7 : 1 }}>
+                        {isEditing ? 'Salvando alterações...' : 'Salvar Alterações'}
+                    </button>
+                </form>
+            </div>
+        </div>
+      )}
+
+      {/* MODAL DE GERENCIAR EQUIPE */}
       {isManageAccessOpen && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
           <div style={{ background: cardBg, width: '100%', maxWidth: '500px', borderRadius: '16px', padding: '30px', boxShadow: '0 15px 40px rgba(0,0,0,0.2)', border: cardBorder }}>
@@ -306,36 +428,6 @@ export default function Dashboard() {
               {projectMembers.length === 0 && <p style={{ color: textSecondary, fontSize: '13px', textAlign: 'center', margin: '10px 0' }}>Nenhum convidado adicionado ainda.</p>}
             </div>
           </div>
-        </div>
-      )}
-
-      {isEditPlanModalOpen && planToEdit && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-            <div style={{ background: cardBg, width: '100%', maxWidth: '500px', borderRadius: '16px', padding: '30px', boxShadow: '0 15px 40px rgba(0,0,0,0.2)', border: cardBorder }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
-                    <div><h2 style={{ margin: '0 0 5px 0', color: textPrimary, fontSize: '22px' }}>Editar Planta</h2><p style={{ margin: 0, color: textSecondary, fontSize: '14px' }}>Altere o nome ou a imagem da planta.</p></div>
-                    <button onClick={() => setIsEditPlanModalOpen(false)} style={{ background: 'none', border: 'none', color: textSecondary, cursor: 'pointer', padding: 0 }}><CloseIcon /></button>
-                </div>
-
-                <form onSubmit={handleSaveEditedPlan} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                    <div>
-                        <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', color: textPrimary, fontWeight: '600' }}>Nome da Planta</label>
-                        <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} required style={{ width: '100%', padding: '12px', border: 'none', background: inputBg, color: textPrimary, borderRadius: '8px', outline: 'none', boxSizing: 'border-box' }} />
-                    </div>
-                    
-                    <div>
-                        <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', color: textPrimary, fontWeight: '600' }}>Substituir Imagem (Opcional)</label>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: inputBg, padding: '10px', borderRadius: '8px', border: cardBorder }}>
-                            <input type="file" accept="image/*" onChange={(e) => setEditFile(e.target.files[0])} style={{ color: textSecondary, fontSize: '14px', flex: 1 }} />
-                        </div>
-                        <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: textSecondary }}>Arquivo atual: {planToEdit.file_name}</p>
-                    </div>
-
-                    <button type="submit" disabled={isEditing} style={{ width: '100%', padding: '14px', background: textPrimary, color: cardBg, border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '16px', marginTop: '10px', opacity: isEditing ? 0.7 : 1 }}>
-                        {isEditing ? 'Salvando alterações...' : 'Salvar Alterações'}
-                    </button>
-                </form>
-            </div>
         </div>
       )}
 

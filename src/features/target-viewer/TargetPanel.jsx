@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../services/supabase';
 import { Pannellum } from 'pannellum-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { logAction } from '../../services/logger';
+
+// IMPORTA O NOSSO MOTOR BIM NOVO! 🏗️
+import IfcViewer from '../ifc-viewer/IfcViewer';
 
 // --- Ícones Minimalistas ---
 const EditIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>;
@@ -10,25 +13,42 @@ const TrashIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="no
 const MoveIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="5 9 2 12 5 15"></polyline><polyline points="9 5 12 2 15 5"></polyline><polyline points="19 9 22 12 19 15"></polyline><polyline points="9 19 12 22 15 19"></polyline><line x1="2" y1="12" x2="22" y2="12"></line><line x1="12" y1="2" x2="12" y2="22"></line></svg>;
 const CloseIcon = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>;
 const CalendarIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>;
-const DownloadIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>;
 const EyeIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>;
+const CompareIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="12" y1="3" x2="12" y2="21"></line></svg>;
+const CloudDownloadIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 17l4 4 4-4"></path><line x1="12" y1="12" x2="12" y2="21"></line><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"></path></svg>;
+const LinkIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>;
+// NOVO ÍCONE DE CUBO (Representando o Modelo BIM 3D)
+const BoxIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>;
 
 export default function TargetPanel({ target, onClose, onUpdateTarget, onDeleteTarget, onRepositionTarget }) {
   const { user } = useAuth();
   const [visits, setVisits] = useState([]);
   const [activeVisit, setActiveVisit] = useState(null);
+  
   const [is360Open, setIs360Open] = useState(false);
   const [active360Url, setActive360Url] = useState(null); 
-  const [showForm, setShowForm] = useState(false);
   
-  // Estados para Nova Visita
+  // Estados do Modo Comparação de Imagem
+  const [isCompareMode, setIsCompareMode] = useState(false);
+  const [compareVisit, setCompareVisit] = useState(null);
+  const [compare360Url, setCompare360Url] = useState(null);
+
+  // --- NOVOS ESTADOS: MODO BIM (IFC) ---
+  const [isBimMode, setIsBimMode] = useState(false);
+  const [projectIfcUrl, setProjectIfcUrl] = useState(null);
+
+  const [isSynced, setIsSynced] = useState(false);
+  const [activeSide, setActiveSide] = useState('left');
+  const leftViewerRef = useRef(null);
+  const rightViewerRef = useRef(null);
+
+  const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState('');
   const [date, setDate] = useState('');
   const [photoFiles, setPhotoFiles] = useState([]); 
   const [pcLink, setPcLink] = useState('');
   const [uploading, setUploading] = useState(false);
 
-  // --- NOVOS ESTADOS PARA EDIÇÃO ---
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [visitToEdit, setVisitToEdit] = useState(null);
   const [editTitle, setEditTitle] = useState('');
@@ -43,19 +63,86 @@ export default function TargetPanel({ target, onClose, onUpdateTarget, onDeleteT
     return () => observer.disconnect();
   }, []);
 
-  // --- NOVA COR DO TEMA (Azul Escuro) ---
   const themeColor = '#1a3a5f';
 
+// Busca os dados das visitas E o link IFC da Planta
   useEffect(() => {
     if (!target) return;
-    const fetchVisits = async () => {
+    
+    const fetchVisitsAndProject = async () => {
+      // 1. Puxa as visitas
       const { data } = await supabase.from('visits').select('*, visit_photos(*)').eq('target_id', target.id).order('visit_date', { ascending: false });
       if (data && data.length > 0) { setVisits(data); setActiveVisit(data[0]); } 
       else { setVisits([]); setActiveVisit(null); }
-    };
-    fetchVisits();
-  }, [target]);
 
+      // 2. Puxa o ifc_url lá da Planta APENAS SE existir a ID
+      // (Se a sua coluna que liga o target à planta se chamar 'plan_id' em vez de 'floor_plan_id', troque a palavra abaixo!)
+      if (target.floor_plan_id) {
+        const { data: planData } = await supabase.from('floor_plans').select('ifc_url').eq('id', target.floor_plan_id).single();
+        if (planData && planData.ifc_url) {
+          setProjectIfcUrl(planData.ifc_url);
+        }
+      }
+    };
+    
+    fetchVisitsAndProject();
+  }, [target]);
+    
+  // Sincronização
+  useEffect(() => {
+    let animationFrameId;
+    const syncViews = () => {
+      if (isSynced && isCompareMode && leftViewerRef.current && rightViewerRef.current) {
+        try {
+          const leftViewer = leftViewerRef.current.getViewer();
+          const rightViewer = rightViewerRef.current.getViewer();
+          if (leftViewer && rightViewer) {
+            if (activeSide === 'left') {
+              rightViewer.setPitch(leftViewer.getPitch(), false);
+              rightViewer.setYaw(leftViewer.getYaw(), false);
+              rightViewer.setHfov(leftViewer.getHfov(), false);
+            } else if (activeSide === 'right') {
+              leftViewer.setPitch(rightViewer.getPitch(), false);
+              leftViewer.setYaw(rightViewer.getYaw(), false);
+              leftViewer.setHfov(rightViewer.getHfov(), false);
+            }
+          }
+        } catch (e) {}
+      }
+      animationFrameId = requestAnimationFrame(syncViews);
+    };
+
+    if (isSynced && isCompareMode) syncViews();
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [isSynced, isCompareMode, activeSide]);
+
+
+  const toggleCompareMode = () => {
+    if (!isCompareMode) {
+      setIsBimMode(false); // Desliga o BIM se for comparar imagens
+      const defaultCompare = visits.length > 1 ? visits.find(v => v.id !== activeVisit.id) || visits[0] : visits[0];
+      setCompareVisit(defaultCompare);
+      setCompare360Url(defaultCompare?.media_url);
+      setIsCompareMode(true);
+    } else {
+      setIsCompareMode(false);
+      setCompareVisit(null);
+      setCompare360Url(null);
+      setIsSynced(false);
+    }
+  };
+
+  const toggleBimMode = () => {
+    if (!isBimMode) {
+      setIsCompareMode(false); // Desliga a comparação de imagens
+      setIsSynced(false);
+      setIsBimMode(true);
+    } else {
+      setIsBimMode(false);
+    }
+  };
+
+  // Funções de Gerenciamento CRUD (Mantidas inalteradas)
   const handleEditTarget = async () => {
     const newName = window.prompt("Novo nome para este ambiente:", target.name);
     if (!newName || newName === target.name) return;
@@ -75,7 +162,6 @@ export default function TargetPanel({ target, onClose, onUpdateTarget, onDeleteT
     }
   };
 
-  // --- PREPARA O MODAL DE EDIÇÃO DA VISITA ---
   const openEditModal = (visit, e) => {
     e.stopPropagation(); 
     setVisitToEdit(visit);
@@ -86,7 +172,6 @@ export default function TargetPanel({ target, onClose, onUpdateTarget, onDeleteT
     setIsEditModalOpen(true);
   };
 
-  // --- SALVA A VISITA EDITADA ---
   const submitEditVisit = async (e) => {
     e.preventDefault();
     setUploading(true);
@@ -101,7 +186,6 @@ export default function TargetPanel({ target, onClose, onUpdateTarget, onDeleteT
         finalMediaUrl = coverUrlData.publicUrl;
 
         if (editPhotoFiles.length > 1) {
-          // Limpa as extras antigas
           await supabase.from('visit_photos').delete().eq('visit_id', visitToEdit.id);
           const extraPhotosToInsert = [];
           for (const file of editPhotoFiles.slice(1)) {
@@ -119,12 +203,15 @@ export default function TargetPanel({ target, onClose, onUpdateTarget, onDeleteT
       const { error } = await supabase.from('visits').update({ title: editTitle, visit_date: editDate, media_url: finalMediaUrl, point_cloud_url: editPcLink || null }).eq('id', visitToEdit.id);
       if (error) throw error;
 
-      // Recarrega as visitas
       const { data: refreshed } = await supabase.from('visits').select('*, visit_photos(*)').eq('target_id', target.id).order('visit_date', { ascending: false });
       setVisits(refreshed);
       if (activeVisit?.id === visitToEdit.id) { 
         setActiveVisit(refreshed.find(v => v.id === visitToEdit.id));
-        if (editPhotoFiles.length > 0) setActive360Url(finalMediaUrl); // Atualiza o 360 se ele estiver aberto e a foto mudou
+        if (editPhotoFiles.length > 0) setActive360Url(finalMediaUrl); 
+      }
+      if (compareVisit?.id === visitToEdit.id) {
+        setCompareVisit(refreshed.find(v => v.id === visitToEdit.id));
+        if (editPhotoFiles.length > 0) setCompare360Url(finalMediaUrl);
       }
 
       await logAction(user.email, 'EDIÇÃO DE VISITA', `Editou a visita "${editTitle}"`);
@@ -139,7 +226,8 @@ export default function TargetPanel({ target, onClose, onUpdateTarget, onDeleteT
     if (!error) {
       const updatedVisits = visits.filter(v => v.id !== visitId);
       setVisits(updatedVisits);
-      if (activeVisit?.id === visitId) { setActiveVisit(updatedVisits.length > 0 ? updatedVisits[0] : null); setIs360Open(false); }
+      if (activeVisit?.id === visitId) { setActiveVisit(updatedVisits.length > 0 ? updatedVisits[0] : null); setIs360Open(false); setIsCompareMode(false); setIsSynced(false); setIsBimMode(false); }
+      if (compareVisit?.id === visitId) { setIsCompareMode(false); setIsSynced(false); }
       await logAction(user.email, 'EXCLUSÃO DE VISITA', `Apagou a visita "${visitTitle}"`);
     }
   };
@@ -194,9 +282,13 @@ export default function TargetPanel({ target, onClose, onUpdateTarget, onDeleteT
   const border = isDarkMode ? '1px solid #2a2a40' : '1px solid #eaeaea';
   const inputBg = isDarkMode ? '#232336' : '#f5f7f9';
   const hoverBg = isDarkMode ? '#2a2a40' : '#f0f4f8';
+  
+  // A tela só se alarga se um dos dois modos divididos estiver ligado
+  const isSplitScreenActive = isCompareMode || isBimMode;
 
   return (
     <>
+      {/* PAINEL LATERAL DIREITO (Mantido intocável) */}
       <div style={{ position: 'fixed', top: 0, right: 0, width: '450px', height: '100vh', backgroundColor: panelBg, boxShadow: '-4px 0 30px rgba(0,0,0,0.1)', zIndex: 1000, display: 'flex', flexDirection: 'column', padding: '30px', boxSizing: 'border-box', borderLeft: border, transition: 'background-color 0.3s' }}>
         
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: border, paddingBottom: '15px', marginBottom: '25px' }}>
@@ -258,16 +350,21 @@ export default function TargetPanel({ target, onClose, onUpdateTarget, onDeleteT
                       <CalendarIcon /> {new Date(visit.visit_date).toLocaleDateString('pt-BR')} • {getBundlePhotos(visit).length} foto(s)
                     </span>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={(e) => openEditModal(visit, e)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: textSecondary, padding: 0 }} onMouseEnter={(e)=>e.currentTarget.style.color=themeColor} onMouseLeave={(e)=>e.currentTarget.style.color=textSecondary}><EditIcon /></button>
-                      <button onClick={(e) => handleDeleteVisit(visit.id, visit.title, e)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: textSecondary, padding: 0 }} onMouseEnter={(e)=>e.currentTarget.style.color='#e63946'} onMouseLeave={(e)=>e.currentTarget.style.color=textSecondary}><TrashIcon /></button>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                      {visit.point_cloud_url && (
+                        <a href={visit.point_cloud_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: textSecondary, padding: 0, display: 'flex' }} title="Baixar Nuvem de Pontos" onMouseEnter={(e)=>e.currentTarget.style.color='#6f42c1'} onMouseLeave={(e)=>e.currentTarget.style.color=textSecondary}>
+                          <CloudDownloadIcon />
+                        </a>
+                      )}
+                      <button onClick={(e) => openEditModal(visit, e)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: textSecondary, padding: 0, display: 'flex' }} title="Editar Visita" onMouseEnter={(e)=>e.currentTarget.style.color=themeColor} onMouseLeave={(e)=>e.currentTarget.style.color=textSecondary}>
+                        <EditIcon />
+                      </button>
+                      <button onClick={(e) => handleDeleteVisit(visit.id, visit.title, e)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: textSecondary, padding: 0, display: 'flex' }} title="Apagar Visita" onMouseEnter={(e)=>e.currentTarget.style.color='#e63946'} onMouseLeave={(e)=>e.currentTarget.style.color=textSecondary}>
+                        <TrashIcon />
+                      </button>
                     </div>
-                    {visit.point_cloud_url && (
-                      <a href={visit.point_cloud_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ padding: '4px 10px', border: `1px solid #6f42c1`, color: '#6f42c1', textDecoration: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', transition: 'background 0.2s' }} onMouseEnter={(e) => { e.currentTarget.style.background = '#6f42c1'; e.currentTarget.style.color = 'white'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6f42c1'; }}>
-                        <DownloadIcon /> Nuvem
-                      </a>
-                    )}
                   </div>
                 </div>
               );
@@ -276,99 +373,159 @@ export default function TargetPanel({ target, onClose, onUpdateTarget, onDeleteT
         </div>
       </div>
 
-      {/* MODAL DE EDIÇÃO DA VISITA */}
-      {isEditModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 10003, display: 'flex', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(4px)' }}>
-            <div style={{ background: panelBg, padding: '30px', borderRadius: '16px', width: '100%', maxWidth: '400px', border: border, boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }}>
-                <h3 style={{ color: textPrimary, margin: '0 0 20px 0', fontSize: '20px' }}>Editar Visita</h3>
-                <form onSubmit={submitEditVisit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    <label style={{ color: textSecondary, fontSize: '12px', marginBottom: '-10px', fontWeight: 'bold' }}>Título da Visita</label>
-                    <input type="text" value={editTitle} onChange={(e)=>setEditTitle(e.target.value)} required style={{ padding: '12px', background: inputBg, color: textPrimary, border: 'none', borderRadius: '6px', outline: 'none' }}/>
-
-                    <label style={{ color: textSecondary, fontSize: '12px', marginBottom: '-10px', fontWeight: 'bold' }}>Data</label>
-                    <input type="date" value={editDate} onChange={(e)=>setEditDate(e.target.value)} required style={{ padding: '12px', background: inputBg, color: textPrimary, border: 'none', borderRadius: '6px', outline: 'none' }}/>
-
-                    <label style={{ color: textSecondary, fontSize: '12px', marginBottom: '-10px', fontWeight: 'bold' }}>Substituir Imagens (Opcional)</label>
-                    <input type="file" multiple accept="image/*" onChange={(e)=>setEditPhotoFiles(Array.from(e.target.files))} style={{ color: textSecondary, fontSize: '12px' }}/>
-
-                    <label style={{ color: textSecondary, fontSize: '12px', marginBottom: '-10px', fontWeight: 'bold' }}>Link da Nuvem de Pontos</label>
-                    <input type="url" value={editPcLink} onChange={(e)=>setEditPcLink(e.target.value)} style={{ padding: '12px', background: inputBg, color: textPrimary, border: 'none', borderRadius: '6px', outline: 'none' }}/>
-
-                    <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-                        <button type="button" onClick={()=>setIsEditModalOpen(false)} style={{ flex: 1, padding: '12px', background: 'transparent', color: textSecondary, border: border, borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Cancelar</button>
-                        <button type="submit" disabled={uploading} style={{ flex: 1, padding: '12px', background: themeColor, color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
-                            {uploading ? 'Salvando...' : 'Salvar Alterações'}
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-      )}
-
-      {/* MODAL 360º NOVO FORMATO */}
+      {/* MODAL 360º / COMPARE / BIM */}
       {is360Open && activeVisit && active360Url && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.95)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
           
-          <div style={{ width: '85vw', height: '85vh', maxWidth: '1300px', backgroundColor: '#000', borderRadius: '16px', overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.1)' }}>
+          <div style={{ width: isSplitScreenActive ? '95vw' : '85vw', height: isSplitScreenActive ? '90vh' : '85vh', maxWidth: isSplitScreenActive ? '1600px' : '1300px', backgroundColor: '#000', borderRadius: '16px', overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.8)', border: '1px solid rgba(255,255,255,0.1)', transition: 'all 0.3s ease' }}>
             
-            {/* NOVO HEADER DO 360 */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '15px 25px', backgroundColor: 'linear-gradient(to bottom, rgba(0,0,0,0.9), transparent)', color: 'white', position: 'absolute', top: 0, left: 0, width: '100%', zIndex: 10001, boxSizing: 'border-box' }}>
+            {/* GLOBAL HEADER DO MODAL */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 25px', backgroundColor: '#111', color: 'white', zIndex: 10001, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+              <h3 style={{ margin: 0, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <EyeIcon /> {target.name}
+              </h3>
               
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                <h3 style={{ margin: 0, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <EyeIcon /> {target.name}
-                </h3>
+              <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
                 
-                {/* SELETOR DE DATA DA VISITA */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: '#ccc' }}>
+                {/* Botão de Sincronizar (Aparece no Compare e agora também pode no BIM depois) */}
+                {isCompareMode && (
+                  <button 
+                    onClick={() => setIsSynced(!isSynced)}
+                    style={{ background: isSynced ? 'rgba(0, 210, 255, 0.2)' : 'transparent', color: isSynced ? '#00d2ff' : '#888', border: isSynced ? '1px solid #00d2ff' : 'none', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', transition: 'all 0.2s', padding: '6px 10px', borderRadius: '8px' }}
+                    title={isSynced ? "Desativar Sincronização" : "Sincronizar Visão"}
+                  >
+                    <LinkIcon /> <span style={{ marginLeft: '6px', fontSize: '13px', fontWeight: 'bold' }}>Sincronizar</span>
+                  </button>
+                )}
+
+                {/* Botão de BIM (Nova Feature) */}
+                <button 
+                  onClick={toggleBimMode}
+                  style={{ background: 'transparent', color: isBimMode ? '#00d2ff' : '#888', border: 'none', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', transition: 'color 0.2s', padding: 0 }}
+                  onMouseEnter={(e)=>e.currentTarget.style.color='white'}
+                  onMouseLeave={(e)=>e.currentTarget.style.color= isBimMode ? '#00d2ff' : '#888'}
+                  title={isBimMode ? "Fechar Modelo BIM" : "BIM vs 360"}
+                >
+                  <BoxIcon />
+                </button>
+
+                {/* Botão de Comparar Imagens */}
+                <button 
+                  onClick={toggleCompareMode}
+                  style={{ background: 'transparent', color: isCompareMode ? '#00d2ff' : '#888', border: 'none', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', transition: 'color 0.2s', padding: 0 }}
+                  onMouseEnter={(e)=>e.currentTarget.style.color='white'}
+                  onMouseLeave={(e)=>e.currentTarget.style.color= isCompareMode ? '#00d2ff' : '#888'}
+                  title={isCompareMode ? "Sair da Comparação" : "Comparar Visitas"}
+                >
+                  <CompareIcon />
+                </button>
+
+                <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.2)' }}></div>
+
+                <button 
+                  onClick={() => { setIs360Open(false); setIsCompareMode(false); setIsBimMode(false); setIsSynced(false); }} 
+                  style={{ background: 'transparent', color: '#888', border: 'none', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', transition: 'color 0.2s', padding: 0 }} 
+                  onMouseEnter={(e)=>e.currentTarget.style.color='white'} 
+                  onMouseLeave={(e)=>e.currentTarget.style.color='#888'}
+                  title="Fechar Visualizador"
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+            </div>
+            
+            {/* ÁREA DOS VISUALIZADORES */}
+            <div style={{ display: 'flex', flex: 1, width: '100%', height: 'calc(100% - 60px)' }}>
+              
+              {/* === LADO ESQUERDO (VISUALIZADOR 360) === */}
+              <div 
+                style={{ flex: 1, position: 'relative', borderRight: isSplitScreenActive ? '2px solid rgba(255,255,255,0.1)' : 'none' }}
+                onMouseEnter={() => setActiveSide('left')}
+                onTouchStart={() => setActiveSide('left')}
+              >
+                
+                <div style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 10002, display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(0,0,0,0.6)', padding: '8px 15px', borderRadius: '8px', backdropFilter: 'blur(4px)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }}>
                   <CalendarIcon />
                   <select 
                     value={activeVisit.id} 
                     onChange={(e) => {
-                      const selectedVisit = visits.find(v => v.id === e.target.value);
-                      setActiveVisit(selectedVisit);
-                      setActive360Url(selectedVisit.media_url); // Troca pra capa da nova visita
+                      const v = visits.find(v => v.id === e.target.value);
+                      setActiveVisit(v); setActive360Url(v.media_url);
                     }}
-                    style={{ 
-                      background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', 
-                      borderRadius: '4px', padding: '4px 8px', outline: 'none', cursor: 'pointer'
-                    }}
+                    style={{ background: 'transparent', color: 'white', border: 'none', outline: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
                   >
-                    {visits.map(v => (
-                      <option key={v.id} value={v.id} style={{ color: 'black' }}>
-                        {new Date(v.visit_date).toLocaleDateString('pt-BR')} - {v.title}
-                      </option>
-                    ))}
+                    {visits.map(v => <option key={v.id} value={v.id} style={{ color: 'black' }}>{new Date(v.visit_date).toLocaleDateString('pt-BR')} - {v.title}</option>)}
                   </select>
+                </div>
+
+                <Pannellum ref={leftViewerRef} key={`left-${active360Url}`} width="100%" height="100%" image={active360Url} pitch={0} yaw={180} hfov={100} autoLoad showZoomCtrl={false} showFullscreenCtrl={false}/>
+                
+                <div style={{ position: 'absolute', bottom: '25px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '10px', backgroundColor: 'rgba(0,0,0,0.6)', padding: '10px', borderRadius: '12px', overflowX: 'auto', maxWidth: '85%', zIndex: 10002, backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  {getBundlePhotos(activeVisit).map((photo, index) => (
+                    <div key={photo.id} onClick={() => setActive360Url(photo.url)} style={{ cursor: 'pointer', border: active360Url === photo.url ? `2px solid ${themeColor}` : '2px solid transparent', borderRadius: '6px', overflow: 'hidden', opacity: active360Url === photo.url ? 1 : 0.6, transition: 'all 0.2s', minWidth: '70px', height: '50px', position: 'relative' }} onMouseEnter={(e)=>e.currentTarget.style.opacity=1} onMouseLeave={(e)=>e.currentTarget.style.opacity = active360Url === photo.url ? 1 : 0.6}>
+                      <img src={photo.url} alt="Cena" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', background: 'rgba(0,0,0,0.7)', color: 'white', fontSize: '10px', textAlign: 'center', padding: '2px 0', fontWeight: 'bold' }}>Cena {index + 1}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              {/* BOTÃO FECHAR "X" MINIMALISTA */}
-              <button 
-                onClick={() => setIs360Open(false)} 
-                style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', backdropFilter: 'blur(4px)', transition: 'background 0.2s' }} 
-                onMouseEnter={(e)=>e.currentTarget.style.background='rgba(255,255,255,0.2)'} 
-                onMouseLeave={(e)=>e.currentTarget.style.background='rgba(255,255,255,0.1)'}
-                title="Fechar Visualizador"
-              >
-                <CloseIcon />
-              </button>
-            </div>
-            
-            <div style={{ flex: 1, width: '100%', height: '100%', position: 'relative' }}>
-              {/* PANNELLUM COM ZOOM MANUAL DESATIVADO (showZoomCtrl={false}) */}
-              <Pannellum key={active360Url} width="100%" height="100%" image={active360Url} pitch={0} yaw={180} hfov={100} autoLoad showZoomCtrl={false} showFullscreenCtrl={false}/>
-              
-              <div style={{ position: 'absolute', bottom: '25px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '12px', backgroundColor: 'rgba(0,0,0,0.7)', padding: '15px', borderRadius: '16px', overflowX: 'auto', maxWidth: '80%', zIndex: 10002, backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.2)' }}>
-                {getBundlePhotos(activeVisit).map((photo, index) => (
-                  <div key={photo.id} onClick={() => setActive360Url(photo.url)} style={{ cursor: 'pointer', border: active360Url === photo.url ? `3px solid ${themeColor}` : '3px solid transparent', borderRadius: '8px', overflow: 'hidden', opacity: active360Url === photo.url ? 1 : 0.6, transition: 'all 0.2s', minWidth: '90px', height: '65px', position: 'relative' }} onMouseEnter={(e)=>e.currentTarget.style.opacity=1} onMouseLeave={(e)=>e.currentTarget.style.opacity = active360Url === photo.url ? 1 : 0.6}>
-                    <img src={photo.url} alt="Bundle" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', background: 'rgba(0,0,0,0.8)', color: 'white', fontSize: '11px', textAlign: 'center', padding: '4px 0', fontWeight: 'bold' }}>Cena {index + 1}</div>
+{/* === LADO DIREITO (MODO COMPARAÇÃO DE IMAGEM) === */}
+              {isCompareMode && compareVisit && compare360Url && (
+                <div 
+                  style={{ flex: 1, position: 'relative' }}
+                  onMouseEnter={() => setActiveSide('right')}
+                  onTouchStart={() => setActiveSide('right')}
+                >
+                  <div style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 10002, display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(0,0,0,0.6)', padding: '8px 15px', borderRadius: '8px', backdropFilter: 'blur(4px)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }}>
+                    <CalendarIcon />
+                    <select 
+                      value={compareVisit.id} 
+                      onChange={(e) => {
+                        const v = visits.find(v => v.id === e.target.value);
+                        setCompareVisit(v); setCompare360Url(v.media_url);
+                      }}
+                      style={{ background: 'transparent', color: 'white', border: 'none', outline: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
+                    >
+                      {visits.map(v => <option key={v.id} value={v.id} style={{ color: 'black' }}>{new Date(v.visit_date).toLocaleDateString('pt-BR')} - {v.title}</option>)}
+                    </select>
                   </div>
-                ))}
-              </div>
-            </div>
+                  
+                  <Pannellum ref={rightViewerRef} key={`right-${compare360Url}`} width="100%" height="100%" image={compare360Url} pitch={0} yaw={180} hfov={100} autoLoad showZoomCtrl={false} showFullscreenCtrl={false}/>
+                  
+                  <div style={{ position: 'absolute', bottom: '25px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '10px', backgroundColor: 'rgba(0,0,0,0.6)', padding: '10px', borderRadius: '12px', overflowX: 'auto', maxWidth: '85%', zIndex: 10002, backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    {getBundlePhotos(compareVisit).map((photo, index) => (
+                      <div 
+                        key={`comp-${photo.id}`} 
+                        onClick={() => setCompare360Url(photo.url)} 
+                        style={{ cursor: 'pointer', border: compare360Url === photo.url ? `2px solid ${themeColor}` : '2px solid transparent', borderRadius: '6px', overflow: 'hidden', opacity: compare360Url === photo.url ? 1 : 0.6, transition: 'all 0.2s', minWidth: '70px', height: '50px', position: 'relative' }} 
+                        onMouseEnter={(e)=>e.currentTarget.style.opacity=1} 
+                        onMouseLeave={(e)=>e.currentTarget.style.opacity = compare360Url === photo.url ? 1 : 0.6}
+                      >
+                        <img src={photo.url} alt="Cena" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', background: 'rgba(0,0,0,0.7)', color: 'white', fontSize: '10px', textAlign: 'center', padding: '2px 0', fontWeight: 'bold' }}>Cena {index + 1}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
+              {/* === LADO DIREITO (MODO BIM) === */}
+              {isBimMode && (
+                <div style={{ flex: 1, position: 'relative', backgroundColor: '#111' }}>
+                  {projectIfcUrl ? (
+                    <IfcViewer ifcUrl={projectIfcUrl} targetCoords={{ x: target.coord_x, y: target.coord_y, z: target.coord_z }} />
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', color: '#888', padding: '20px', textAlign: 'center' }}>
+                      <BoxIcon />
+                      <p style={{ marginTop: '15px', fontSize: '15px' }}>Nenhum modelo BIM vinculado a este projeto.</p>
+                      <span style={{ fontSize: '12px', color: '#555' }}>Adicione uma URL IFC no painel do banco de dados (tabela projects).</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+            </div>
           </div>
         </div>
       )}
