@@ -25,6 +25,8 @@ export default function AppRoutes() {
             </PrivateRoute>
           } />
           
+          <Route path="/dashboard/:id" element={<Dashboard />} />
+          
           <Route path="/update-password" element={<UpdatePassword />} />
 
           <Route path="/projeto/:id" element={
