@@ -10,14 +10,18 @@ const UserIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="non
 const LockIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>;
 const MoonIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>;
 const SunIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>;
+const BadgeIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>;
 
 export default function EditProfile() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   
+  const [loadingName, setLoadingName] = useState(false);
   const [loadingEmail, setLoadingEmail] = useState(false);
   const [loadingPassword, setLoadingPassword] = useState(false);
 
@@ -25,7 +29,11 @@ export default function EditProfile() {
   const [isDarkMode, setIsDarkMode] = useState(localStorage.getItem('spbim_theme') === 'dark');
 
   useEffect(() => {
-    if (user) setEmail(user.email);
+    if (user) {
+      setEmail(user.email);
+      setFirstName(user.user_metadata?.first_name || '');
+      setLastName(user.user_metadata?.last_name || '');
+    }
     
     // Observador para o caso do tema mudar enquanto a página tá aberta
     const observer = new MutationObserver(() => setIsDarkMode(localStorage.getItem('spbim_theme') === 'dark'));
@@ -34,6 +42,26 @@ export default function EditProfile() {
   }, [user]);
 
   // --- FUNÇÕES DE ATUALIZAÇÃO ---
+  const handleUpdateName = async (e) => {
+    e.preventDefault();
+    setLoadingName(true);
+    
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: { first_name: firstName, last_name: lastName }
+      });
+      
+      if (error) throw error;
+      await logAction(user.email, 'ALTERAÇÃO DE PERFIL', `Atualizou nome para ${firstName} ${lastName}`);
+      alert("✅ Perfil atualizado com sucesso!");
+      window.location.reload(); // Recarrega para navbar e o sistema pegarem o nome novo instantaneamente
+    } catch (error) {
+      alert("Erro ao atualizar perfil: " + error.message);
+    } finally {
+      setLoadingName(false);
+    }
+  };
+
   const handleUpdateEmail = async (e) => {
     e.preventDefault();
     if (!email || email === user.email) return;
@@ -85,7 +113,7 @@ export default function EditProfile() {
   const textSecondary = isDarkMode ? '#8892b0' : '#666666';
   const border = isDarkMode ? '1px solid #2a2a40' : '1px solid #eaeaea';
   const inputBg = isDarkMode ? '#232336' : '#f5f7f9';
-  const themeColor = '#1a3a5f'; 
+  const themeColor = '#00d2ff'; 
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: bgMain, padding: '40px 20px', fontFamily: 'system-ui, sans-serif' }}>
@@ -96,9 +124,34 @@ export default function EditProfile() {
         </Link>
 
         <h1 style={{ margin: '0 0 10px 0', color: textPrimary, fontSize: '32px' }}>Configurações de Conta</h1>
-        <p style={{ margin: '0 0 40px 0', color: textSecondary, fontSize: '15px' }}>Gerencie suas credenciais de acesso e preferências.</p>
+        <p style={{ margin: '0 0 40px 0', color: textSecondary, fontSize: '15px' }}>Gerencie seus dados pessoais, credenciais de acesso e preferências.</p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+
+          {/* CARTÃO 0: NOME E SOBRENOME */}
+          <div style={{ background: cardBg, border: border, borderRadius: '16px', padding: '30px', boxShadow: '0 4px 15px rgba(0,0,0,0.02)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px' }}>
+              <div style={{ background: isDarkMode ? '#2a2a40' : '#f0f4f8', color: textPrimary, padding: '10px', borderRadius: '10px' }}><BadgeIcon /></div>
+              <h2 style={{ margin: 0, color: textPrimary, fontSize: '20px' }}>Dados Pessoais</h2>
+            </div>
+            <form onSubmit={handleUpdateName} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', color: textSecondary, fontWeight: '600' }}>Nome</label>
+                  <input type="text" placeholder="Seu Nome" value={firstName} onChange={(e) => setFirstName(e.target.value)} required style={{ width: '100%', padding: '14px', border: 'none', background: inputBg, color: textPrimary, borderRadius: '8px', outline: 'none', fontSize: '15px', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', color: textSecondary, fontWeight: '600' }}>Sobrenome</label>
+                  <input type="text" placeholder="Seu Sobrenome" value={lastName} onChange={(e) => setLastName(e.target.value)} style={{ width: '100%', padding: '14px', border: 'none', background: inputBg, color: textPrimary, borderRadius: '8px', outline: 'none', fontSize: '15px', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button type="submit" disabled={loadingName} style={{ padding: '12px 24px', background: 'linear-gradient(135deg, #6f42c1 0%, #00d2ff 100%)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: loadingName ? 'not-allowed' : 'pointer', opacity: loadingName ? 0.5 : 1 }}>
+                  {loadingName ? 'Salvando...' : 'Salvar Nome'}
+                </button>
+              </div>
+            </form>
+          </div>
           
           {/* CARTÃO 1: E-MAIL */}
           <div style={{ background: cardBg, border: border, borderRadius: '16px', padding: '30px', boxShadow: '0 4px 15px rgba(0,0,0,0.02)' }}>
@@ -115,7 +168,7 @@ export default function EditProfile() {
                 style={{ width: '100%', padding: '14px', border: 'none', background: inputBg, color: textPrimary, borderRadius: '8px', outline: 'none', fontSize: '15px', boxSizing: 'border-box' }} 
               />
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button type="submit" disabled={loadingEmail || email === user?.email} style={{ padding: '12px 24px', background: themeColor, color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: email === user?.email ? 'not-allowed' : 'pointer', opacity: email === user?.email ? 0.5 : 1 }}>
+                <button type="submit" disabled={loadingEmail || email === user?.email} style={{ padding: '12px 24px', background: 'linear-gradient(135deg, #6f42c1 0%, #00d2ff 100%)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: email === user?.email ? 'not-allowed' : 'pointer', opacity: email === user?.email ? 0.5 : 1 }}>
                   {loadingEmail ? 'Processando...' : 'Alterar E-mail'}
                 </button>
               </div>

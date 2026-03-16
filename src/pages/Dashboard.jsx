@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { logAction } from '../services/logger'; 
 import emailjs from '@emailjs/browser';
 import Navbar from '../components/Navbar';
+import Select from 'react-select'; // <-- BIBLIOTECA PREMIUM AQUI
 
 // --- Ícones Minimalistas (SVGs) ---
 const EditIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>;
@@ -19,7 +20,7 @@ const BoxIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none
 const PinIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>;
 const UserBadgeIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>;
 const CalendarCheckIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>;
-const ClockIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>;
+const ClockIcon = ({ style }) => <svg style={style} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>;
 const CameraIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>;
 const FlagIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg>;
 const CalendarPlusIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line><line x1="12" y1="14" x2="12" y2="18"></line><line x1="10" y1="16" x2="14" y2="16"></line></svg>;
@@ -31,6 +32,16 @@ const ChevronRightIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" f
 export default function Dashboard() {
   const { id } = useParams();
   const { user } = useAuth(); 
+  const meta = user?.user_metadata || {};
+  const firstName = meta.first_name || '';
+  const lastName = meta.last_name || '';
+  const displayName = firstName ? `${firstName} ${lastName}`.trim() : user?.email?.split('@')[0];
+  const getInitials = () => {
+    if (firstName && lastName) return `${firstName[0]}${lastName[0]}`.toUpperCase();
+    if (firstName) return firstName.substring(0, 2).toUpperCase();
+    if (user?.email) return user.email.substring(0, 2).toUpperCase();
+    return 'U';
+  };
   
   const [project, setProject] = useState(null);
   const [floorPlans, setFloorPlans] = useState([]);
@@ -43,6 +54,8 @@ export default function Dashboard() {
   const [planFilterStatus, setPlanFilterStatus] = useState(''); 
   const [issueFilterType, setIssueFilterType] = useState(''); 
   const [issueFilterValue, setIssueFilterValue] = useState('');
+  const [agendaFilterStatus, setAgendaFilterStatus] = useState(''); 
+  const [agendaFilterAssignee, setAgendaFilterAssignee] = useState('');
 
   // === ESTADOS DA AGENDA DE CAPTURAS ===
   const [captureRequests, setCaptureRequests] = useState([]);
@@ -194,10 +207,8 @@ export default function Dashboard() {
     }
   };
 
-useEffect(() => {
-    // Se tiver planta ativa, filtra só as visitas dela. Se não, usa TODAS da obra!
+  useEffect(() => {
     const relevantVisits = activePlan ? allVisits.filter(v => v.floor_plan_id === activePlan.id) : allVisits;
-    
     let start = project?.start_date ? new Date(project.start_date + 'T12:00:00Z').getTime() : Date.now();
     
     if (relevantVisits.length > 0) {
@@ -212,23 +223,18 @@ useEffect(() => {
     }
 
     if (start >= end) start = end - 86400000; 
-    
     setMinDate(start); 
     setMaxDate(end); 
     setSliderDate(end); 
   }, [activePlan, allVisits, project]);
 
   const timelineStats = useMemo(() => {
-    // Mesma lógica de filtro: local ou global
     const relevantVisits = activePlan ? allVisits.filter(v => v.floor_plan_id === activePlan.id) : allVisits;
-    
     const validVisits = relevantVisits.filter(v => new Date(v.visit_date + 'T12:00:00Z').getTime() <= sliderDate);
     const uniqueTargets = new Set(validVisits.map(v => v.target_id)).size;
     const totalScenes = validVisits.reduce((acc, v) => acc + 1 + (v.visit_photos ? v.visit_photos.length : 0), 0);
-    
     return { visitsCount: validVisits.length, targetsMapped: uniqueTargets, scenesCount: totalScenes };
   }, [allVisits, sliderDate, activePlan]);
-
 
   const filteredPlans = useMemo(() => {
     return floorPlans.filter(plan => {
@@ -439,10 +445,16 @@ useEffect(() => {
   const nextMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
   const prevMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
 
-  const filteredRequests = selectedAgendaDate 
-    ? captureRequests.filter(r => r.scheduled_date === selectedAgendaDate)
-    : captureRequests;
+  const filteredRequests = useMemo(() => {
+    return captureRequests.filter(req => {
+      const matchDate = selectedAgendaDate ? req.scheduled_date === selectedAgendaDate : true;
+      const matchStatus = agendaFilterStatus ? req.status === agendaFilterStatus : true;
+      const matchAssignee = agendaFilterAssignee ? req.assigned_to === agendaFilterAssignee : true;
+      return matchDate && matchStatus && matchAssignee;
+    });
+  }, [captureRequests, selectedAgendaDate, agendaFilterStatus, agendaFilterAssignee]);
 
+  const uniqueAgendaAssignees = [...new Set(captureRequests.map(r => r.assigned_to).filter(Boolean))];
 
   if (!project) return <div style={{ padding: '40px', textAlign: 'center' }}>Carregando projeto...</div>;
 
@@ -450,17 +462,65 @@ useEffect(() => {
   const totalUsers = projectMembers.length + 1; 
 
   const textPrimary = isDarkMode ? '#ffffff' : '#1a1a2e';
-  const textSecondary = isDarkMode ? '#8892b0' : '#666666';
-  const cardBg = isDarkMode ? '#1e1e2f' : '#ffffff';
-  const cardBorder = isDarkMode ? '1px solid #2a2a40' : '1px solid #eaeaea';
-  const inputBg = isDarkMode ? '#232336' : '#f5f7f9';
+  const textSecondary = isDarkMode ? '#a0a0a0' : '#666666'; 
+  const cardBg = isDarkMode ? '#1e1e1e' : '#ffffff';        
+  const cardBorder = isDarkMode ? '1px solid #333333' : '1px solid #eaeaea'; 
+  const inputBg = isDarkMode ? '#2a2a2a' : '#f5f7f9';       
+
+  // === ESTILOS PREMIUM PARA OS DROPDOWNS REACT-SELECT ===
+  const customSelectStyles = {
+    control: (provided, state) => ({
+      ...provided,
+      backgroundColor: inputBg,
+      borderColor: state.isFocused ? '#00d2ff' : (isDarkMode ? '#333333' : '#eaeaea'),
+      borderRadius: '6px',
+      boxShadow: state.isFocused ? '0 0 0 1px #00d2ff' : 'none',
+      '&:hover': { borderColor: '#00d2ff' },
+      cursor: 'pointer',
+      minHeight: '34px',
+    }),
+    menuPortal: (base) => ({ ...base, zIndex: 999999 }),
+    menu: (provided) => ({
+      ...provided,
+      backgroundColor: cardBg,
+      borderRadius: '8px',
+      border: cardBorder,
+      boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+      overflow: 'hidden'
+    }),
+    option: (provided, state) => ({
+      ...provided,
+      backgroundColor: state.isSelected ? '#00d2ff' : state.isFocused ? (isDarkMode ? '#333333' : '#f0f4f8') : 'transparent',
+      color: state.isSelected ? '#1a1a2e' : textPrimary,
+      cursor: 'pointer',
+      fontSize: '13px',
+      fontWeight: state.isSelected ? 'bold' : 'normal',
+      '&:active': { backgroundColor: '#00d2ff', color: '#1a1a2e' }
+    }),
+    singleValue: (provided) => ({ ...provided, color: textPrimary, fontSize: '12px', fontWeight: '500' }),
+    placeholder: (provided) => ({ ...provided, color: textSecondary, fontSize: '12px' }),
+    indicatorSeparator: () => ({ display: 'none' }),
+    dropdownIndicator: (provided) => ({ ...provided, color: textSecondary, '&:hover': { color: '#00d2ff' }, padding: '4px 8px' })
+  };
 
   return (
     <>
       <Navbar />
 
+      {/* === CSS DA BARRA DE ROLAGEM === */}
+      <style>{`
+        /* Barra de Rolagem */
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { 
+            background: ${isDarkMode ? '#444444' : '#c1c1c1'}; 
+            border-radius: 10px; 
+        }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: ${isDarkMode ? '#00d2ff' : '#888'}; }
+      `}</style>
+
       <div style={{ padding: '30px 40px', maxWidth: '100%', margin: '0 auto', fontFamily: 'system-ui, sans-serif' }}>
-        
+
         {/* ======================================================================= */}
         {/* VISUALIZAÇÃO DE DENTRO DA PLANTA (ATIVA)                                */}
         {/* ======================================================================= */}
@@ -472,9 +532,9 @@ useEffect(() => {
             
             <div style={{ display: 'flex', gap: '25px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
                 
-                  {/* --- COLUNA ESQUERDA DA PLANTA --- */}
-                  <div style={{ flex: '1 1 500px', maxWidth: '550px', display: 'flex', flexDirection: 'column', gap: '25px' }}>     
-                                   
+                {/* --- COLUNA ESQUERDA DA PLANTA --- */}
+                <div style={{ flex: '1 1 450px', maxWidth: '550px', display: 'flex', flexDirection: 'column', gap: '25px' }}>
+                    
                     {/* CARD DA PLANTA */}
                     <div style={{ background: cardBg, borderRadius: '16px', border: cardBorder, padding: '25px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', position: 'relative', overflow: 'hidden' }}>
                       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '6px', background: 'linear-gradient(90deg, #6f42c1 0%, #00d2ff 100%)' }}></div>
@@ -488,24 +548,48 @@ useEffect(() => {
                       
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', borderTop: cardBorder, paddingTop: '20px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ fontSize: '12px', color: textSecondary, fontWeight: 'bold', textTransform: 'uppercase' }}>Status do Andar:</span>
-                              <select 
-                                  value={activePlan.status || 'Em andamento'} 
-                                  onChange={(e) => handleTogglePlanStatus(e.target.value)}
-                                  disabled={!isOwner}
-                                  style={{ 
-                                      padding: '6px 12px', borderRadius: '20px', fontWeight: 'bold', fontSize: '12px', border: 'none', cursor: isOwner ? 'pointer' : 'default', outline: 'none',
-                                      background: (activePlan.status === 'Concluído') ? '#10b98120' : '#00d2ff20', color: (activePlan.status === 'Concluído') ? '#10b981' : '#00d2ff', appearance: isOwner ? 'auto' : 'none'
-                                  }}
-                              >
-                                  <option value="Em andamento">Em andamento</option>
-                                  <option value="Concluído">Concluído</option>
-                              </select>
+                              <span style={{ fontSize: '12px', color: textSecondary, fontWeight: 'bold', textTransform: 'uppercase', paddingRight: '10px' }}>Status do Andar:</span>
+                              <div style={{ flex: 1, maxWidth: '160px' }}>
+                                <Select 
+                                    value={{ value: activePlan.status || 'Em andamento', label: activePlan.status || 'Em andamento' }} 
+                                    onChange={(sel) => handleTogglePlanStatus(sel.value)}
+                                    isDisabled={!isOwner}
+                                    styles={{
+                                        control: (provided) => ({
+                                            ...provided,
+                                            backgroundColor: (activePlan.status === 'Concluído') ? '#10b98120' : '#00d2ff20',
+                                            border: 'none',
+                                            borderRadius: '20px',
+                                            minHeight: '28px',
+                                            boxShadow: 'none',
+                                            cursor: isOwner ? 'pointer' : 'default'
+                                        }),
+                                        singleValue: (provided) => ({
+                                            ...provided,
+                                            color: (activePlan.status === 'Concluído') ? '#10b981' : '#00d2ff',
+                                            fontWeight: 'bold',
+                                            fontSize: '12px'
+                                        }),
+                                        dropdownIndicator: (provided) => ({
+                                            ...provided,
+                                            color: (activePlan.status === 'Concluído') ? '#10b981' : '#00d2ff',
+                                            padding: '0 8px'
+                                        }),
+                                        indicatorSeparator: () => ({ display: 'none' }),
+                                        menuPortal: base => ({ ...base, zIndex: 999999 }),
+                                        menu: provided => ({ ...provided, backgroundColor: cardBg, borderRadius: '8px', border: cardBorder, overflow: 'hidden' }),
+                                        option: (provided, state) => ({ ...provided, backgroundColor: state.isSelected ? '#00d2ff' : state.isFocused ? (isDarkMode ? '#333333' : '#f0f4f8') : 'transparent', color: state.isSelected ? '#1a1a2e' : textPrimary, cursor: 'pointer', fontSize: '12px', fontWeight: state.isSelected ? 'bold' : 'normal' }),
+                                    }}
+                                    isSearchable={false}
+                                    menuPortalTarget={document.body} menuPosition="fixed"
+                                    options={[{value: 'Em andamento', label: 'Em andamento'}, {value: 'Concluído', label: 'Concluído'}]}
+                                />
+                              </div>
                           </div>
                           
                           {isOwner && (
                             <div style={{ display: 'flex', gap: '10px' }}>
-                              <button onClick={(e) => openEditPlanModal(activePlan, e)} style={{ flex: 1, padding: '10px', background: inputBg, color: textPrimary, border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', transition: 'background 0.2s', fontSize: '12px' }} onMouseEnter={(e) => e.currentTarget.style.background = isDarkMode ? '#3a3a50' : '#e2e8f0'} onMouseLeave={(e) => e.currentTarget.style.background = inputBg}>
+                              <button onClick={(e) => openEditPlanModal(activePlan, e)} style={{ flex: 1, padding: '10px', background: inputBg, color: textPrimary, border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', transition: 'background 0.2s', fontSize: '12px' }} onMouseEnter={(e) => e.currentTarget.style.background = isDarkMode ? '#333333' : '#e2e8f0'} onMouseLeave={(e) => e.currentTarget.style.background = inputBg}>
                                 <EditIcon /> Editar
                               </button>
                               <button onClick={(e) => handleDeletePlan(activePlan.id, activePlan.title, e)} style={{ flex: 1, padding: '10px', background: '#e6394615', color: '#e63946', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', transition: 'background 0.2s', fontSize: '12px' }} onMouseEnter={(e) => e.currentTarget.style.background = '#e6394630'} onMouseLeave={(e) => e.currentTarget.style.background = '#e6394615'}>
@@ -516,14 +600,14 @@ useEffect(() => {
                       </div>
                     </div>
 
-                    {/* TIMELINE */}
-                    <div style={{ background: isDarkMode ? 'linear-gradient(180deg, #111 0%, #1a1a2e 100%)' : 'linear-gradient(180deg, #ffffff 0%, #f4f7f6 100%)', borderRadius: '16px', padding: '25px', boxShadow: isDarkMode ? '0 10px 40px rgba(0,0,0,0.3)' : '0 4px 20px rgba(0,0,0,0.06)', border: isDarkMode ? '1px solid rgba(0, 210, 255, 0.2)' : '1px solid rgba(0, 210, 255, 0.4)' }}>
+                    {/* TIMELINE DA PLANTA */}
+                    <div style={{ background: cardBg, borderRadius: '16px', border: cardBorder, padding: '25px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <ClockIcon style={{ color: '#00d2ff', width: '20px', height: '20px' }} />
-                            <h2 style={{ margin: 0, color: textPrimary, fontSize: '18px' }}>Evolução</h2>
+                            <ClockIcon style={{ color: textPrimary, width: '24px', height: '24px' }} />
+                            <h2 style={{ margin: 0, color: textPrimary, fontSize: '18px' }}>Evolução da Planta</h2>
                           </div>
-                          <div style={{ background: isDarkMode ? 'rgba(0, 210, 255, 0.1)' : '#e0f7fa', padding: '4px 10px', borderRadius: '20px', color: isDarkMode ? '#00d2ff' : '#00838f', fontWeight: 'bold', fontSize: '12px' }}>
+                          <div style={{ background: inputBg, padding: '6px 12px', borderRadius: '8px', color: textPrimary, fontWeight: 'bold', fontSize: '13px', border: cardBorder }}>
                             {new Date(sliderDate).toLocaleDateString('pt-BR')}
                           </div>
                         </div>
@@ -531,7 +615,7 @@ useEffect(() => {
                         <div style={{ margin: '20px 0 30px 0', position: 'relative' }}>
                           <input 
                             type="range" min={minDate} max={maxDate} step={86400000} value={sliderDate} onChange={(e) => setSliderDate(Number(e.target.value))}
-                            style={{ width: '100%', cursor: 'pointer', accentColor: '#00d2ff', height: '4px', outline: 'none' }}
+                            style={{ width: '100%', cursor: 'pointer', accentColor: '#00d2ff', height: '8px', outline: 'none', borderRadius: '4px', background: inputBg }}
                           />
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', color: textSecondary, fontSize: '11px', fontWeight: 'bold' }}>
                             <span>Início: {new Date(minDate).toLocaleDateString('pt-BR')}</span>
@@ -539,17 +623,17 @@ useEffect(() => {
                           </div>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                          <div style={{ background: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : inputBg, padding: '15px', borderRadius: '10px', border: cardBorder, textAlign: 'center' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px' }}>
+                          <div style={{ background: inputBg, padding: '15px', borderRadius: '12px', border: cardBorder, textAlign: 'center' }}>
                             <span style={{ display: 'block', color: textSecondary, fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '5px' }}>Ambientes</span>
                             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', color: textPrimary, fontSize: '20px', fontWeight: 'bold' }}><PinIcon /> {timelineStats.targetsMapped}</div>
                           </div>
-                          <div style={{ background: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : inputBg, padding: '15px', borderRadius: '10px', border: cardBorder, textAlign: 'center' }}>
+                          <div style={{ background: inputBg, padding: '15px', borderRadius: '12px', border: cardBorder, textAlign: 'center' }}>
                             <span style={{ display: 'block', color: textSecondary, fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '5px' }}>Cenas 360</span>
                             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', color: '#00d2ff', fontSize: '20px', fontWeight: 'bold' }}><CameraIcon /> {timelineStats.scenesCount}</div>
                           </div>
-                          <div style={{ gridColumn: '1 / -1', background: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : inputBg, padding: '15px', borderRadius: '10px', border: cardBorder, textAlign: 'center' }}>
-                            <span style={{ display: 'block', color: textSecondary, fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '5px' }}>Visitas Registradas</span>
+                          <div style={{ background: inputBg, padding: '15px', borderRadius: '12px', border: cardBorder, textAlign: 'center' }}>
+                            <span style={{ display: 'block', color: textSecondary, fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '5px' }}>Visitas</span>
                             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', color: '#10b981', fontSize: '20px', fontWeight: 'bold' }}><CalendarCheckIcon /> {timelineStats.visitsCount}</div>
                           </div>
                         </div>
@@ -557,9 +641,8 @@ useEffect(() => {
 
                 </div>
 
-                  {/* --- COLUNA DIREITA DA PLANTA (O MAPA EM SI) --- */}
-                  <div style={{ flex: '1.2 1 450px', display: 'flex', flexDirection: 'column', height: '100%', minHeight: '600px' }}>
-
+                {/* --- COLUNA DIREITA DA PLANTA (O MAPA EM SI) --- */}
+                <div style={{ flex: '1.2 1 450px', display: 'flex', flexDirection: 'column', height: '100%', minHeight: '600px' }}>
                     <MapViewer floorPlan={activePlan} isOwner={isOwner} autoOpenIssue={autoOpenIssue} setAutoOpenIssue={setAutoOpenIssue} />
                 </div>
             </div>
@@ -617,14 +700,14 @@ useEffect(() => {
                 {/* CARD DE EQUIPE */}
                 <div style={{ background: cardBg, borderRadius: '16px', border: cardBorder, padding: '20px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                    <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: inputBg, display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#6f42c1' }}><UsersIcon /></div>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: inputBg, display: 'flex', justifyContent: 'center', alignItems: 'center', color: textPrimary }}><UsersIcon /></div>
                     <div style={{ flex: 1 }}>
                       <span style={{ display: 'block', fontSize: '11px', color: textSecondary, fontWeight: 'bold', textTransform: 'uppercase' }}>Acesso ao Projeto</span>
                       <span style={{ fontSize: '14px', color: textPrimary, fontWeight: '600' }}>{totalUsers} pessoas na obra</span>
                     </div>
                   </div>
                   {isOwner && (
-                    <button onClick={() => setIsManageAccessOpen(true)} style={{ width: '100%', marginTop: '15px', padding: '10px', background: inputBg, border: 'none', borderRadius: '8px', color: textPrimary, fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', transition: 'background 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = isDarkMode ? '#2a2a40' : '#e2e8f0'} onMouseLeave={(e) => e.currentTarget.style.background = inputBg}>
+                    <button onClick={() => setIsManageAccessOpen(true)} style={{ width: '100%', marginTop: '15px', padding: '10px', background: inputBg, border: 'none', borderRadius: '8px', color: textPrimary, fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', transition: 'background 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = isDarkMode ? '#333333' : '#e2e8f0'} onMouseLeave={(e) => e.currentTarget.style.background = inputBg}>
                       Gerenciar Equipe
                     </button>
                   )}
@@ -634,89 +717,108 @@ useEffect(() => {
                 <div style={{ background: cardBg, borderRadius: '16px', border: cardBorder, padding: '20px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
                   <h3 style={{ margin: '0 0 15px 0', color: textPrimary, fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}><FlagIcon /> Apontamentos</h3>
                   
-                  {/* Controles de Filtro */}
+                  {/* Controles de Filtro React-Select */}
                   <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap' }}>
-                    <select 
-                      value={issueFilterType} 
-                      onChange={(e) => { setIssueFilterType(e.target.value); setIssueFilterValue(''); }}
-                      style={{ padding: '8px', borderRadius: '6px', border: cardBorder, background: inputBg, color: textPrimary, fontSize: '12px', outline: 'none', cursor: 'pointer', flex: 1 }}
-                    >
-                      <option value="">Filtrar por...</option>
-                      <option value="status">Status</option>
-                      <option value="assigned_to">Responsável</option>
-                      <option value="floor_plan">Planta</option>
-                    </select>
+                    <div style={{ flex: 1, minWidth: '130px' }}>
+                      <Select 
+                        styles={customSelectStyles} isSearchable={false} menuPortalTarget={document.body} menuPosition="fixed"
+                        options={[{value: '', label: 'Filtrar por...'}, {value: 'status', label: 'Por Status'}, {value: 'assigned_to', label: 'Por Responsável'}, {value: 'floor_plan', label: 'Por Planta'}]}
+                        value={{ value: issueFilterType, label: issueFilterType === 'status' ? 'Por Status' : issueFilterType === 'assigned_to' ? 'Por Responsável' : issueFilterType === 'floor_plan' ? 'Por Planta' : 'Filtrar por...' }}
+                        onChange={(sel) => { setIssueFilterType(sel.value); setIssueFilterValue(''); }}
+                      />
+                    </div>
 
                     {issueFilterType === 'status' && (
-                      <select value={issueFilterValue} onChange={(e) => setIssueFilterValue(e.target.value)} style={{ padding: '8px', borderRadius: '6px', border: cardBorder, background: inputBg, color: textPrimary, fontSize: '12px', outline: 'none', cursor: 'pointer', flex: 1 }}>
-                        <option value="">Todos</option>
-                        <option value="open">Em Aberto</option>
-                        <option value="resolved">Resolvido</option>
-                      </select>
+                      <div style={{ flex: 1, minWidth: '130px' }}>
+                        <Select 
+                          styles={customSelectStyles} isSearchable={false} menuPortalTarget={document.body} menuPosition="fixed"
+                          options={[{value: '', label: 'Todos os Status'}, {value: 'open', label: 'Em Aberto'}, {value: 'resolved', label: 'Resolvido'}]}
+                          value={{ value: issueFilterValue, label: issueFilterValue === 'open' ? 'Em Aberto' : issueFilterValue === 'resolved' ? 'Resolvido' : 'Todos os Status' }}
+                          onChange={(sel) => setIssueFilterValue(sel.value)}
+                        />
+                      </div>
                     )}
                     {issueFilterType === 'assigned_to' && (
-                      <select value={issueFilterValue} onChange={(e) => setIssueFilterValue(e.target.value)} style={{ padding: '8px', borderRadius: '6px', border: cardBorder, background: inputBg, color: textPrimary, fontSize: '12px', outline: 'none', cursor: 'pointer', flex: 1 }}>
-                        <option value="">Todos</option>
-                        {uniqueIssueAssignees.map(email => <option key={email} value={email}>{email.split('@')[0]}</option>)}
-                      </select>
+                      <div style={{ flex: 1, minWidth: '130px' }}>
+                        <Select 
+                          styles={customSelectStyles} isSearchable={false} menuPortalTarget={document.body} menuPosition="fixed"
+                          options={[{value: '', label: 'Todos'}, ...uniqueIssueAssignees.map(email => ({value: email, label: email.split('@')[0]}))]}
+                          value={{ value: issueFilterValue, label: issueFilterValue ? issueFilterValue.split('@')[0] : 'Todos' }}
+                          onChange={(sel) => setIssueFilterValue(sel.value)}
+                        />
+                      </div>
                     )}
                     {issueFilterType === 'floor_plan' && (
-                      <select value={issueFilterValue} onChange={(e) => setIssueFilterValue(e.target.value)} style={{ padding: '8px', borderRadius: '6px', border: cardBorder, background: inputBg, color: textPrimary, fontSize: '12px', outline: 'none', cursor: 'pointer', flex: 1 }}>
-                        <option value="">Todas</option>
-                        {uniqueIssuePlans.map(pid => {
-                          const pTitle = floorPlans.find(p => p.id === pid)?.title || 'Desconhecida';
-                          return <option key={pid} value={pid}>{pTitle}</option>;
-                        })}
-                      </select>
+                      <div style={{ flex: 1, minWidth: '130px' }}>
+                        <Select 
+                          styles={customSelectStyles} isSearchable={false} menuPortalTarget={document.body} menuPosition="fixed"
+                          options={[{value: '', label: 'Todas as Plantas'}, ...uniqueIssuePlans.map(pid => ({value: pid, label: floorPlans.find(p => p.id === pid)?.title || 'Desconhecida'}))]}
+                          value={{ value: issueFilterValue, label: issueFilterValue ? (floorPlans.find(p => p.id === issueFilterValue)?.title || 'Desconhecida') : 'Todas as Plantas' }}
+                          onChange={(sel) => setIssueFilterValue(sel.value)}
+                        />
+                      </div>
                     )}
                   </div>
                   
-                  {/* Tabela com Scroll */}
+                  {/* Lista de Apontamentos (Flexbox Avançado com Cabeçalho Travado) */}
                   {filteredIssues.length === 0 ? (
                     <p style={{ margin: 0, fontSize: '13px', color: textSecondary, textAlign: 'center', padding: '20px 0' }}>Nenhum problema encontrado.</p>
                   ) : (
-                    <div style={{ maxHeight: '400px', overflowY: 'auto', border: cardBorder, borderRadius: '8px' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px' }}>
-                        <thead style={{ position: 'sticky', top: 0, background: isDarkMode ? '#232336' : '#f5f7f9', zIndex: 1 }}>
-                          <tr>
-                            <th style={{ padding: '10px', borderBottom: cardBorder, color: textSecondary, fontWeight: 'bold' }}>Status</th>
-                            <th style={{ padding: '10px', borderBottom: cardBorder, color: textSecondary, fontWeight: 'bold' }}>Problema</th>
-                            <th style={{ padding: '10px', borderBottom: cardBorder, color: textSecondary, fontWeight: 'bold' }}>Resp.</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filteredIssues.map(issue => (
-                            <tr 
-                              key={issue.id} 
-                              onClick={() => handleOpenIssue(issue)}
-                              style={{ borderBottom: cardBorder, cursor: 'pointer', transition: 'background 0.2s', color: textPrimary }}
-                              onMouseEnter={(e) => e.currentTarget.style.background = isDarkMode ? '#2a2a40' : '#f0f4f8'}
-                              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                              title={`Ver na Planta: ${floorPlans.find(p => p.id === issue.targets?.floor_plan_id)?.title || 'N/A'}`}
-                            >
-                              <td style={{ padding: '10px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '10px', height: '10px', borderRadius: '50%', background: issue.status === 'open' ? '#e63946' : '#10b981' }} title={issue.status === 'open' ? 'Aberto' : 'Resolvido'}></div>
-                              </td>
-                              <td style={{ padding: '10px', fontWeight: '600' }}>
-                                {issue.title}
-                                <span style={{ display: 'block', fontSize: '10px', color: textSecondary, fontWeight: 'normal', marginTop: '2px' }}>
-                                  {issue.targets?.name || 'N/A'}
-                                </span>
-                              </td>
-                              <td style={{ padding: '10px', color: issue.assigned_to ? textPrimary : textSecondary }}>
-                                {issue.assigned_to ? issue.assigned_to.split('@')[0] : '-'}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      
+                      {/* CABEÇALHO ESTÁTICO (Travado fora do Scroll) */}
+                      <div style={{ 
+                        display: 'flex', alignItems: 'center', padding: '12px 15px', 
+                        background: inputBg, border: cardBorder, borderBottom: 'none', 
+                        borderTopLeftRadius: '8px', borderTopRightRadius: '8px',
+                        marginRight: filteredIssues.length > 6 ? '16px' : '0px' 
+                      }}>
+                        <div style={{ width: '50px', color: textSecondary, fontWeight: 'bold', fontSize: '12px' }}>Status</div>
+                        <div style={{ flex: 1, color: textSecondary, fontWeight: 'bold', fontSize: '12px' }}>Problema</div>
+                        <div style={{ width: '80px', color: textSecondary, fontWeight: 'bold', fontSize: '12px', textAlign: 'right' }}>Resp.</div>
+                      </div>
+
+                      {/* CORPO COM SCROLL ISOLADO */}
+                      <div className="custom-scroll" style={{ maxHeight: '350px', overflowY: 'auto', paddingRight: filteredIssues.length > 6 ? '10px' : '0px' }}>
+                        
+                        <div style={{ background: inputBg, borderRadius: '0 0 8px 8px', border: cardBorder, overflow: 'hidden' }}>
+                          {filteredIssues.map((issue, index) => {
+                            const isLast = index === filteredIssues.length - 1;
+                            return (
+                              <div 
+                                key={issue.id} 
+                                onClick={() => handleOpenIssue(issue)}
+                                style={{ 
+                                  display: 'flex', alignItems: 'center', padding: '15px', 
+                                  borderBottom: isLast ? 'none' : cardBorder, 
+                                  cursor: 'pointer', transition: 'background 0.2s' 
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.background = isDarkMode ? '#333333' : '#f0f4f8'}
+                                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                title={`Ver na Planta: ${floorPlans.find(p => p.id === issue.targets?.floor_plan_id)?.title || 'N/A'}`}
+                              >
+                                <div style={{ width: '50px' }}>
+                                  <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: issue.status === 'open' ? '#e63946' : '#10b981' }} title={issue.status === 'open' ? 'Aberto' : 'Resolvido'}></div>
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <span style={{ display: 'block', fontWeight: '600', color: textPrimary, fontSize: '12px' }}>{issue.title}</span>
+                                  <span style={{ display: 'block', color: textSecondary, fontSize: '11px', marginTop: '4px' }}>{issue.targets?.name || 'N/A'}</span>
+                                </div>
+                                <div style={{ width: '80px', textAlign: 'right', color: issue.assigned_to ? textPrimary : textSecondary, fontSize: '12px' }}>
+                                  {issue.assigned_to ? issue.assigned_to.split('@')[0] : '-'}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        
+                      </div>
                     </div>
                   )}
                 </div>
-
               </div>
 
-              {/* ======================= COLUNA 2: CENTRAL (PLANTAS) ======================= */}
+              {/* ======================= COLUNA 2: CENTRAL (PLANTAS E GLOBAL TIMELINE) ======================= */}
               <div style={{ flex: '2 1 600px', display: 'flex', flexDirection: 'column', gap: '25px' }}>
                 
                 {/* BARRA DE CONTROLE DE PLANTAS (FILTROS) */}
@@ -730,17 +832,15 @@ useEffect(() => {
                     <span style={{ color: textSecondary, marginRight: '8px', display: 'flex' }}><SearchIcon /></span>
                     <input type="text" placeholder="Buscar planta..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ background: 'transparent', border: 'none', color: textPrimary, outline: 'none', width: '100%', fontSize: '13px' }}/>
                     
-                    {/* NOVO SELECT PARA FILTRO DE STATUS DA PLANTA */}
-                    <div style={{ borderLeft: `1px solid ${isDarkMode ? '#444' : '#ccc'}`, paddingLeft: '10px', marginLeft: '10px', display: 'flex', alignItems: 'center' }}>
-                      <select 
-                        value={planFilterStatus} 
-                        onChange={(e) => setPlanFilterStatus(e.target.value)} 
-                        style={{ background: 'transparent', border: 'none', color: textSecondary, fontSize: '12px', outline: 'none', cursor: 'pointer', fontWeight: 'bold' }}
-                      >
-                        <option value="">Todas as Plantas</option>
-                        <option value="Em andamento">Em andamento</option>
-                        <option value="Concluído">Concluídas</option>
-                      </select>
+                    {/* NOVO SELECT PREMIUM PARA FILTRO DE STATUS DA PLANTA */}
+                    <div style={{ borderLeft: `1px solid ${isDarkMode ? '#444' : '#ccc'}`, paddingLeft: '10px', marginLeft: '10px', display: 'flex', alignItems: 'center', minWidth: '150px' }}>
+                      <Select 
+                        styles={{...customSelectStyles, control: base => ({...base, backgroundColor: 'transparent', border: 'none', boxShadow: 'none', minHeight: 'auto'}), dropdownIndicator: base => ({...base, padding: 0})}} 
+                        isSearchable={false} menuPortalTarget={document.body} menuPosition="fixed"
+                        options={[{value: '', label: 'Todas as Plantas'}, {value: 'Em andamento', label: 'Em andamento'}, {value: 'Concluído', label: 'Concluídas'}]}
+                        value={{ value: planFilterStatus, label: planFilterStatus === 'Em andamento' ? 'Em andamento' : planFilterStatus === 'Concluído' ? 'Concluídas' : 'Todas as Plantas' }}
+                        onChange={(sel) => setPlanFilterStatus(sel.value)}
+                      />
                     </div>
                   </div>
 
@@ -776,13 +876,13 @@ useEffect(() => {
                 )}
 
                 {/* TIMELINE GLOBAL DO PROJETO */}
-                <div style={{ background: isDarkMode ? 'linear-gradient(180deg, #111 0%, #1a1a2e 100%)' : 'linear-gradient(180deg, #ffffff 0%, #f4f7f6 100%)', borderRadius: '16px', padding: '25px', boxShadow: isDarkMode ? '0 10px 40px rgba(0,0,0,0.3)' : '0 4px 20px rgba(0,0,0,0.06)', border: isDarkMode ? '1px solid rgba(0, 210, 255, 0.2)' : '1px solid rgba(0, 210, 255, 0.4)' }}>
+                <div style={{ background: cardBg, borderRadius: '16px', border: cardBorder, padding: '25px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <ClockIcon style={{ color: '#00d2ff', width: '20px', height: '20px' }} />
+                        <ClockIcon style={{ color: textPrimary, width: '24px', height: '24px' }} />
                         <h2 style={{ margin: 0, color: textPrimary, fontSize: '18px' }}>Evolução Global da Obra</h2>
                       </div>
-                      <div style={{ background: isDarkMode ? 'rgba(0, 210, 255, 0.1)' : '#e0f7fa', padding: '4px 10px', borderRadius: '20px', color: isDarkMode ? '#00d2ff' : '#00838f', fontWeight: 'bold', fontSize: '12px' }}>
+                      <div style={{ background: inputBg, padding: '6px 12px', borderRadius: '8px', color: textPrimary, fontWeight: 'bold', fontSize: '13px', border: cardBorder }}>
                         {new Date(sliderDate).toLocaleDateString('pt-BR')}
                       </div>
                     </div>
@@ -790,7 +890,7 @@ useEffect(() => {
                     <div style={{ margin: '20px 0 30px 0', position: 'relative' }}>
                       <input 
                         type="range" min={minDate} max={maxDate} step={86400000} value={sliderDate} onChange={(e) => setSliderDate(Number(e.target.value))}
-                        style={{ width: '100%', cursor: 'pointer', accentColor: '#00d2ff', height: '4px', outline: 'none' }}
+                        style={{ width: '100%', cursor: 'pointer', accentColor: '#00d2ff', height: '8px', outline: 'none', borderRadius: '4px', background: inputBg }}
                       />
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', color: textSecondary, fontSize: '11px', fontWeight: 'bold' }}>
                         <span>Início: {new Date(minDate).toLocaleDateString('pt-BR')}</span>
@@ -798,24 +898,24 @@ useEffect(() => {
                       </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                      <div style={{ background: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : inputBg, padding: '15px', borderRadius: '10px', border: cardBorder, textAlign: 'center' }}>
-                        <span style={{ display: 'block', color: textSecondary, fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '5px' }}>Ambientes Totais</span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px' }}>
+                      <div style={{ background: inputBg, padding: '15px', borderRadius: '12px', border: cardBorder, textAlign: 'center' }}>
+                        <span style={{ display: 'block', color: textSecondary, fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '5px' }}>Ambientes</span>
                         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', color: textPrimary, fontSize: '20px', fontWeight: 'bold' }}><PinIcon /> {timelineStats.targetsMapped}</div>
                       </div>
-                      <div style={{ background: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : inputBg, padding: '15px', borderRadius: '10px', border: cardBorder, textAlign: 'center' }}>
-                        <span style={{ display: 'block', color: textSecondary, fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '5px' }}>Cenas Totais</span>
+                      <div style={{ background: inputBg, padding: '15px', borderRadius: '12px', border: cardBorder, textAlign: 'center' }}>
+                        <span style={{ display: 'block', color: textSecondary, fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '5px' }}>Cenas 360</span>
                         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', color: '#00d2ff', fontSize: '20px', fontWeight: 'bold' }}><CameraIcon /> {timelineStats.scenesCount}</div>
                       </div>
-                      <div style={{ gridColumn: '1 / -1', background: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : inputBg, padding: '15px', borderRadius: '10px', border: cardBorder, textAlign: 'center' }}>
-                        <span style={{ display: 'block', color: textSecondary, fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '5px' }}>Total de Visitas Registradas na Obra</span>
+                      <div style={{ background: inputBg, padding: '15px', borderRadius: '12px', border: cardBorder, textAlign: 'center' }}>
+                        <span style={{ display: 'block', color: textSecondary, fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '5px' }}>Visitas Totais</span>
                         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', color: '#10b981', fontSize: '20px', fontWeight: 'bold' }}><CalendarCheckIcon /> {timelineStats.visitsCount}</div>
                       </div>
                     </div>
                 </div>
                 
                 {/* GRID DE PLANTAS COM SCROLL */}
-                <div style={{ maxHeight: '700px', overflowY: 'auto', paddingRight: '10px' }}>
+                <div className="custom-scroll" style={{ maxHeight: '700px', overflowY: 'auto', paddingRight: '10px' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '20px' }}>
                     {filteredPlans.map(plan => (
                       <div key={plan.id} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -849,18 +949,6 @@ useEffect(() => {
               {/* ======================= COLUNA 3: DIREITA (AGENDA) ======================= */}
               <div style={{ flex: '1 1 350px', maxWidth: '400px', display: 'flex', flexDirection: 'column', gap: '25px' }}>
                 
-                {/* HEADER DA AGENDA */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: cardBg, padding: '15px 20px', borderRadius: '12px', border: cardBorder, boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
-                  <h2 style={{ margin: 0, color: textPrimary, fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <CalendarPlusIcon /> Agenda de Vistorias
-                  </h2>
-                  {isOwner && (
-                    <button onClick={() => setIsAgendaModalOpen(true)} style={{ background: '#10b981', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer' }}>
-                      + Agendar
-                    </button>
-                  )}
-                </div>
-
                 {/* CALENDÁRIO */}
                 <div style={{ background: cardBg, borderRadius: '16px', border: cardBorder, padding: '20px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -874,23 +962,44 @@ useEffect(() => {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '5px' }}>
                     {calendarDays.map((item, index) => {
                       if (!item) return <div key={`empty-${index}`} style={{ padding: '10px' }}></div>;
+                      
                       const isSelected = selectedAgendaDate === item.dateStr;
                       const reqsToday = captureRequests.filter(r => r.scheduled_date === item.dateStr);
+                      
+                      // LÓGICA DAS CORES DO BACKGROUND
+                      let bg = 'transparent';
+                      let fg = textPrimary;
+                      let bd = '1px solid transparent';
+
+                      if (reqsToday.length > 0) {
+                        const hasPending = reqsToday.some(r => r.status === 'pending');
+                        const hasReschedule = reqsToday.some(r => r.status === 'reschedule_requested');
+                        const hasConfirmed = reqsToday.some(r => r.status === 'confirmed');
+                        
+                        if (hasPending) { bg = '#e63946'; fg = '#fff'; }
+                        else if (hasReschedule) { bg = '#f59e0b'; fg = '#fff'; }
+                        else if (hasConfirmed) { bg = '#00d2ff'; fg = '#1a1a2e'; }
+                        else { bg = '#10b981'; fg = '#fff'; }
+                      } 
+                      
+                      if (isSelected) {
+                        bd = `2px solid ${isDarkMode ? '#fff' : '#000'}`;
+                        if (reqsToday.length === 0) { bg = '#00d2ff20'; fg = '#00d2ff'; }
+                      }
+
                       return (
                         <div 
-                          key={item.dateStr} onClick={() => setSelectedAgendaDate(isSelected ? null : item.dateStr)}
-                          style={{ aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '4px', cursor: 'pointer', background: isSelected ? '#00d2ff20' : (reqsToday.length > 0 ? inputBg : 'transparent'), border: isSelected ? '1px solid #00d2ff' : '1px solid transparent', borderRadius: '8px', transition: 'all 0.2s' }}
-                          onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = inputBg; }} onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = reqsToday.length > 0 ? inputBg : 'transparent'; }}
+                          key={item.dateStr} 
+                          onClick={() => setSelectedAgendaDate(isSelected ? null : item.dateStr)}
+                          style={{ 
+                            aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                            cursor: 'pointer', background: bg, border: bd, borderRadius: '8px', transition: 'all 0.2s', 
+                            color: fg, fontWeight: isSelected || reqsToday.length > 0 ? 'bold' : 'normal', fontSize: '13px' 
+                          }}
+                          onMouseEnter={(e) => { if (!isSelected && reqsToday.length === 0) e.currentTarget.style.background = inputBg; }} 
+                          onMouseLeave={(e) => { if (!isSelected && reqsToday.length === 0) e.currentTarget.style.background = 'transparent'; }}
                         >
-                          <span style={{ fontSize: '12px', fontWeight: isSelected || reqsToday.length > 0 ? 'bold' : 'normal', color: isSelected ? '#00d2ff' : textPrimary }}>{item.day}</span>
-                          {reqsToday.length > 0 && (
-                            <div style={{ display: 'flex', gap: '2px', marginTop: 'auto', flexWrap: 'wrap', justifyContent: 'center' }}>
-                              {reqsToday.map(r => {
-                                let dotColor = '#e63946'; if (r.status === 'reschedule_requested') dotColor = '#f59e0b'; if (r.status === 'confirmed') dotColor = '#00d2ff'; if (r.status === 'completed') dotColor = '#10b981'; 
-                                return <div key={r.id} style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: dotColor }}></div>;
-                              })}
-                            </div>
-                          )}
+                          {item.day}
                         </div>
                       );
                     })}
@@ -903,69 +1012,120 @@ useEffect(() => {
                   </div>
                 </div>
 
-                {/* LISTA DE AGENDAMENTOS COM SCROLL */}
-                <div style={{ maxHeight: '400px', overflowY: 'auto', paddingRight: '5px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                {/* CARD DA LISTA DE AGENDAMENTOS COM FILTROS E SCROLL */}
+                <div style={{ background: cardBg, borderRadius: '16px', border: cardBorder, padding: '20px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
+                  
+                  {/* TÍTULO E BOTÃO DE AGENDAR UNIFICADOS */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                    <h3 style={{ margin: 0, color: textPrimary, fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <CalendarPlusIcon /> Lista de Solicitações
+                    </h3>
+                    {isOwner && (
+                      <button 
+                        onClick={() => setIsAgendaModalOpen(true)} 
+                        style={{ 
+                          background: 'linear-gradient(135deg, #6f42c1 0%, #00d2ff 100%)', 
+                          color: 'white', 
+                          border: 'none', 
+                          padding: '6px 12px', 
+                          borderRadius: '6px', 
+                          fontWeight: 'bold', 
+                          fontSize: '12px', 
+                          cursor: 'pointer',
+                          boxShadow: '0 4px 15px rgba(111, 66, 193, 0.2)',
+                          transition: 'transform 0.2s'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                        onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                      >
+                        + Agendar
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Controles de Filtro da Agenda React-Select */}
+                  <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: '140px' }}>
+                      <Select 
+                        styles={customSelectStyles} isSearchable={false} menuPortalTarget={document.body} menuPosition="fixed"
+                        options={[{value: '', label: 'Todos os Status'}, {value: 'pending', label: 'Pendente'}, {value: 'confirmed', label: 'Confirmado'}, {value: 'reschedule_requested', label: 'Remarcação'}, {value: 'completed', label: 'Finalizado'}]}
+                        value={{ value: agendaFilterStatus, label: agendaFilterStatus === 'pending' ? 'Pendente' : agendaFilterStatus === 'confirmed' ? 'Confirmado' : agendaFilterStatus === 'reschedule_requested' ? 'Remarcação' : agendaFilterStatus === 'completed' ? 'Finalizado' : 'Todos os Status' }}
+                        onChange={(sel) => setAgendaFilterStatus(sel.value)}
+                      />
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: '140px' }}>
+                      <Select 
+                        styles={customSelectStyles} isSearchable={false} menuPortalTarget={document.body} menuPosition="fixed"
+                        options={[{value: '', label: 'Qualquer Responsável'}, ...uniqueAgendaAssignees.map(email => ({value: email, label: email.split('@')[0]}))]}
+                        value={{ value: agendaFilterAssignee, label: agendaFilterAssignee ? agendaFilterAssignee.split('@')[0] : 'Qualquer Responsável' }}
+                        onChange={(sel) => setAgendaFilterAssignee(sel.value)}
+                      />
+                    </div>
+                  </div>
+
                   {selectedAgendaDate && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#00d2ff15', padding: '10px 15px', borderRadius: '8px', border: '1px solid #00d2ff40', position: 'sticky', top: 0, zIndex: 1 }}>
-                      <span style={{ color: '#00d2ff', fontWeight: 'bold', fontSize: '12px' }}>Data: {new Date(selectedAgendaDate + 'T12:00:00Z').toLocaleDateString('pt-BR')}</span>
-                      <button onClick={() => setSelectedAgendaDate(null)} style={{ background: 'transparent', border: 'none', color: textPrimary, fontSize: '11px', cursor: 'pointer', fontWeight: 'bold', textDecoration: 'underline' }}>Limpar</button>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#00d2ff15', padding: '10px 15px', borderRadius: '8px', border: '1px solid #00d2ff40', marginBottom: '15px' }}>
+                      <span style={{ color: '#00d2ff', fontWeight: 'bold', fontSize: '12px' }}>Dia: {new Date(selectedAgendaDate + 'T12:00:00Z').toLocaleDateString('pt-BR')}</span>
+                      <button onClick={() => setSelectedAgendaDate(null)} style={{ background: 'transparent', border: 'none', color: textPrimary, fontSize: '11px', cursor: 'pointer', fontWeight: 'bold', textDecoration: 'underline' }}>Limpar Dia</button>
                     </div>
                   )}
 
-                  {filteredRequests.length === 0 ? (
-                    <div style={{ background: cardBg, padding: '30px', borderRadius: '12px', border: cardBorder, textAlign: 'center', color: textSecondary, fontSize: '13px' }}>
-                      Nenhuma captura na agenda.
-                    </div>
-                  ) : (
-                    filteredRequests.map(req => (
-                      <div key={req.id} style={{ background: cardBg, borderRadius: '12px', border: cardBorder, padding: '15px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', alignItems: 'center' }}>
-                          <span style={{ background: req.status === 'completed' ? '#10b98120' : req.status === 'confirmed' ? '#00d2ff20' : req.status === 'reschedule_requested' ? '#f59e0b20' : '#e6394620', color: req.status === 'completed' ? '#10b981' : req.status === 'confirmed' ? '#00d2ff' : req.status === 'reschedule_requested' ? '#f59e0b' : '#e63946', padding: '3px 8px', borderRadius: '20px', fontWeight: 'bold', fontSize: '9px', textTransform: 'uppercase' }}>
-                            {req.status === 'pending' && 'Pendente'}
-                            {req.status === 'confirmed' && 'Confirmado'}
-                            {req.status === 'reschedule_requested' && 'Remarcação'}
-                            {req.status === 'completed' && 'Finalizado'}
-                          </span>
-                          <span style={{ fontSize: '11px', color: textSecondary, fontWeight: 'bold' }}>{new Date(req.scheduled_date + 'T12:00:00Z').toLocaleDateString('pt-BR')}</span>
-                        </div>
-                        <h3 style={{ margin: '0 0 4px 0', fontSize: '14px', color: textPrimary }}>{req.title}</h3>
-                        <p style={{ margin: '0 0 10px 0', fontSize: '11px', color: textSecondary }}>Resp: <strong>{req.assigned_to.split('@')[0]}</strong></p>
-                        
-                        <div style={{ background: inputBg, padding: '8px', borderRadius: '6px', marginBottom: '12px' }}>
-                          <span style={{ display: 'block', fontSize: '10px', fontWeight: 'bold', color: textSecondary, marginBottom: '4px' }}>LOCAIS ({req.target_ids.length}):</span>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                            {req.target_ids.map(tid => {
-                               const t = projectTargets.find(pt => pt.id === tid);
-                               return <span key={tid} style={{ background: cardBg, border: cardBorder, padding: '2px 4px', borderRadius: '4px', fontSize: '10px', color: textPrimary }}>{t ? t.name : 'Apagado'}</span>
-                            })}
+                  {/* Lista com Scroll Interno */}
+                  <div className="custom-scroll" style={{ maxHeight: '400px', overflowY: 'auto', paddingRight: '5px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    {filteredRequests.length === 0 ? (
+                      <p style={{ margin: 0, fontSize: '13px', color: textSecondary, textAlign: 'center', padding: '20px 0' }}>Nenhuma captura encontrada.</p>
+                    ) : (
+                      filteredRequests.map(req => (
+                        <div key={req.id} style={{ background: inputBg, borderRadius: '12px', border: cardBorder, padding: '15px', display: 'flex', flexDirection: 'column' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', alignItems: 'center' }}>
+                            <span style={{ background: req.status === 'completed' ? '#10b98120' : req.status === 'confirmed' ? '#00d2ff20' : req.status === 'reschedule_requested' ? '#f59e0b20' : '#e6394620', color: req.status === 'completed' ? '#10b981' : req.status === 'confirmed' ? '#00d2ff' : req.status === 'reschedule_requested' ? '#f59e0b' : '#e63946', padding: '3px 8px', borderRadius: '20px', fontWeight: 'bold', fontSize: '9px', textTransform: 'uppercase' }}>
+                              {req.status === 'pending' && 'Pendente'}
+                              {req.status === 'confirmed' && 'Confirmado'}
+                              {req.status === 'reschedule_requested' && 'Remarcação'}
+                              {req.status === 'completed' && 'Finalizado'}
+                            </span>
+                            <span style={{ fontSize: '11px', color: textSecondary, fontWeight: 'bold' }}>{new Date(req.scheduled_date + 'T12:00:00Z').toLocaleDateString('pt-BR')}</span>
                           </div>
-                        </div>
-
-                        {req.status !== 'completed' && (
-                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: 'auto' }}>
-                            {(user.email === req.assigned_to || isOwner) && req.status === 'pending' && (
-                              <button onClick={() => handleUpdateAgendaStatus(req.id, 'confirmed')} style={{ flex: 1, padding: '6px', background: '#00d2ff', color: '#1a1a2e', border: 'none', borderRadius: '4px', fontWeight: 'bold', fontSize: '11px', cursor: 'pointer' }}>Confirmar</button>
-                            )}
-                            <button onClick={() => handleProposeReschedule(req)} style={{ flex: 1, padding: '6px', background: 'transparent', color: textPrimary, border: `1px solid ${isDarkMode ? '#444' : '#ccc'}`, borderRadius: '4px', fontWeight: 'bold', fontSize: '11px', cursor: 'pointer' }}>Remarcar</button>
-
-                            {req.status === 'reschedule_requested' && (
-                              <div style={{ width: '100%', background: '#f59e0b20', padding: '8px', borderRadius: '6px', border: '1px solid #f59e0b40', marginTop: '4px' }}>
-                                <p style={{ margin: '0 0 6px 0', fontSize: '11px', color: '#f59e0b', fontWeight: 'bold' }}>Sugerido: {new Date(req.reschedule_date + 'T12:00:00Z').toLocaleDateString('pt-BR')}</p>
-                                <button onClick={() => handleAcceptReschedule(req)} style={{ width: '100%', padding: '6px', background: '#f59e0b', color: '#fff', border: 'none', borderRadius: '4px', fontWeight: 'bold', fontSize: '11px', cursor: 'pointer' }}>Aceitar Data</button>
-                              </div>
-                            )}
-
-                            {(user.email === req.assigned_to || isOwner) && req.status === 'confirmed' && (
-                              <button onClick={() => handleUpdateAgendaStatus(req.id, 'completed')} style={{ width: '100%', padding: '6px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold', fontSize: '11px', cursor: 'pointer' }}>Finalizar</button>
-                            )}
+                          <h3 style={{ margin: '0 0 4px 0', fontSize: '14px', color: textPrimary }}>{req.title}</h3>
+                          <p style={{ margin: '0 0 10px 0', fontSize: '11px', color: textSecondary }}>Resp: <strong>{req.assigned_to.split('@')[0]}</strong></p>
+                          
+                          <div style={{ background: cardBg, padding: '8px', borderRadius: '6px', marginBottom: '12px', border: cardBorder }}>
+                            <span style={{ display: 'block', fontSize: '10px', fontWeight: 'bold', color: textSecondary, marginBottom: '4px' }}>LOCAIS ({req.target_ids.length}):</span>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                              {req.target_ids.map(tid => {
+                                 const t = projectTargets.find(pt => pt.id === tid);
+                                 return <span key={tid} style={{ background: inputBg, border: cardBorder, padding: '2px 4px', borderRadius: '4px', fontSize: '10px', color: textPrimary }}>{t ? t.name : 'Apagado'}</span>
+                              })}
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    ))
-                  )}
+
+                          {req.status !== 'completed' && (
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: 'auto' }}>
+                              {(user.email === req.assigned_to || isOwner) && req.status === 'pending' && (
+                                <button onClick={() => handleUpdateAgendaStatus(req.id, 'confirmed')} style={{ flex: 1, padding: '6px', background: '#00d2ff', color: '#1a1a2e', border: 'none', borderRadius: '4px', fontWeight: 'bold', fontSize: '11px', cursor: 'pointer' }}>Confirmar</button>
+                              )}
+                              <button onClick={() => handleProposeReschedule(req)} style={{ flex: 1, padding: '6px', background: 'transparent', color: textPrimary, border: `1px solid ${isDarkMode ? '#333333' : '#ccc'}`, borderRadius: '4px', fontWeight: 'bold', fontSize: '11px', cursor: 'pointer' }}>Remarcar</button>
+
+                              {req.status === 'reschedule_requested' && (
+                                <div style={{ width: '100%', background: '#f59e0b20', padding: '8px', borderRadius: '6px', border: '1px solid #f59e0b40', marginTop: '4px' }}>
+                                  <p style={{ margin: '0 0 6px 0', fontSize: '11px', color: '#f59e0b', fontWeight: 'bold' }}>Sugerido: {new Date(req.reschedule_date + 'T12:00:00Z').toLocaleDateString('pt-BR')}</p>
+                                  <button onClick={() => handleAcceptReschedule(req)} style={{ width: '100%', padding: '6px', background: '#f59e0b', color: '#fff', border: 'none', borderRadius: '4px', fontWeight: 'bold', fontSize: '11px', cursor: 'pointer' }}>Aceitar Data</button>
+                                </div>
+                              )}
+
+                              {(user.email === req.assigned_to || isOwner) && req.status === 'confirmed' && (
+                                <button onClick={() => handleUpdateAgendaStatus(req.id, 'completed')} style={{ width: '100%', padding: '6px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold', fontSize: '11px', cursor: 'pointer' }}>Finalizar</button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
-              </div>
 
+              </div>
             </div>
           </>
         )}
@@ -973,7 +1133,7 @@ useEffect(() => {
         {/* MODAL DE EDITAR PROJETO */}
         {isEditProjectModalOpen && (
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-              <div style={{ background: cardBg, width: '100%', maxWidth: '600px', borderRadius: '16px', padding: '30px', boxShadow: '0 15px 40px rgba(0,0,0,0.2)', border: cardBorder, maxHeight: '90vh', overflowY: 'auto' }}>
+              <div className="custom-scroll" style={{ background: cardBg, width: '100%', maxWidth: '600px', borderRadius: '16px', padding: '30px', boxShadow: '0 15px 40px rgba(0,0,0,0.2)', border: cardBorder, maxHeight: '90vh', overflowY: 'auto' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
                       <div>
                         <h2 style={{ margin: '0 0 5px 0', color: textPrimary, fontSize: '22px' }}>Editar Ficha Cadastral</h2>
@@ -990,11 +1150,12 @@ useEffect(() => {
                           </div>
                           <div>
                               <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', color: textPrimary, fontWeight: '600' }}>Status</label>
-                              <select value={editProjectStatus} onChange={(e) => setEditProjectStatus(e.target.value)} style={{ width: '100%', padding: '12px', border: 'none', background: inputBg, color: textPrimary, borderRadius: '8px', outline: 'none', boxSizing: 'border-box', appearance: 'none', cursor: 'pointer' }}>
-                                  <option value="Em andamento">Em andamento</option>
-                                  <option value="Concluído">Concluído</option>
-                                  <option value="Pausado">Pausado</option>
-                              </select>
+                              <Select 
+                                styles={{...customSelectStyles, control: base => ({...base, padding: '2px', minHeight: '40px', fontSize: '14px'})}} isSearchable={false} menuPortalTarget={document.body} menuPosition="fixed"
+                                options={[{value: 'Em andamento', label: 'Em andamento'}, {value: 'Concluído', label: 'Concluído'}, {value: 'Pausado', label: 'Pausado'}]}
+                                value={{ value: editProjectStatus, label: editProjectStatus }}
+                                onChange={(sel) => setEditProjectStatus(sel.value)}
+                              />
                           </div>
                       </div>
                       <div>
@@ -1007,7 +1168,7 @@ useEffect(() => {
                       </div>
                       <div>
                           <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', color: textPrimary, fontWeight: '600' }}>Data de Início</label>
-                          <input type="date" value={editProjectStartDate} onChange={(e) => setEditProjectStartDate(e.target.value)} style={{ width: '100%', padding: '12px', border: 'none', background: inputBg, color: textSecondary, borderRadius: '8px', outline: 'none', boxSizing: 'border-box' }} />
+                          <input type="date" value={editProjectStartDate} onChange={(e) => setEditProjectStartDate(e.target.value)} style={{ width: '100%', padding: '12px', border: 'none', background: inputBg, color: textSecondary, borderRadius: '8px', outline: 'none', boxSizing: 'border-box', colorScheme: isDarkMode ? 'dark' : 'light' }} />
                       </div>
                       <div>
                           <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', color: textPrimary, fontWeight: '600' }}>Descrição / Notas do Projeto</label>
@@ -1070,9 +1231,24 @@ useEffect(() => {
               <div style={{ display: 'flex', gap: '10px', marginBottom: '25px' }}>
                 <button onClick={handleInviteMember} style={{ flex: 1, padding: '12px', background: inputBg, color: textPrimary, border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}><MailIcon /> Convidar Novo Membro</button>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto' }}>
+              <div className="custom-scroll" style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto', paddingRight: '5px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', background: inputBg, borderRadius: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}><div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#6f42c1', color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', fontSize: '14px' }}>D</div><div><span style={{ display: 'block', color: textPrimary, fontWeight: '600', fontSize: '14px' }}>Dono do Projeto</span><span style={{ color: textSecondary, fontSize: '12px' }}>Proprietário</span></div></div>
+<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', background: inputBg, borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #6f42c1 0%, #00d2ff 100%)', color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', fontSize: '14px' }}>
+                      {user?.user_metadata?.first_name && user?.user_metadata?.last_name 
+                        ? `${user.user_metadata.first_name[0]}${user.user_metadata.last_name[0]}`.toUpperCase() 
+                        : (user?.email ? user.email.substring(0, 2).toUpperCase() : 'D')}
+                    </div>
+                    <div>
+                      <span style={{ display: 'block', color: textPrimary, fontWeight: '600', fontSize: '14px' }}>
+                        {user?.user_metadata?.first_name ? `${user.user_metadata.first_name} ${user.user_metadata.last_name || ''}` : 'Dono do Projeto'}
+                      </span>
+                      <span style={{ color: textSecondary, fontSize: '12px' }}>{user.email}</span>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#00d2ff', background: '#00d2ff20', padding: '4px 8px', borderRadius: '20px' }}>Proprietário</span>
+                </div>
                   <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#6f42c1', background: 'rgba(111, 66, 193, 0.1)', padding: '4px 8px', borderRadius: '20px' }}>Proprietário</span>
                 </div>
                 {projectMembers.map(member => (
@@ -1090,7 +1266,7 @@ useEffect(() => {
         {/* MODAL DE CRIAR AGENDAMENTO */}
         {isAgendaModalOpen && (
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-            <div style={{ background: cardBg, width: '100%', maxWidth: '500px', borderRadius: '16px', padding: '30px', boxShadow: '0 15px 40px rgba(0,0,0,0.2)', border: cardBorder, maxHeight: '90vh', overflowY: 'auto' }}>
+            <div className="custom-scroll" style={{ background: cardBg, width: '100%', maxWidth: '500px', borderRadius: '16px', padding: '30px', boxShadow: '0 15px 40px rgba(0,0,0,0.2)', border: cardBorder, maxHeight: '90vh', overflowY: 'auto' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
                 <div>
                   <h2 style={{ margin: '0 0 5px 0', color: textPrimary, fontSize: '22px' }}>Nova Solicitação</h2>
@@ -1108,21 +1284,22 @@ useEffect(() => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                   <div>
                     <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', color: textPrimary, fontWeight: '600' }}>Data Desejada *</label>
-                    <input type="date" value={reqDate} onChange={(e) => setReqDate(e.target.value)} required style={{ width: '100%', padding: '12px', border: 'none', background: inputBg, color: textSecondary, borderRadius: '8px', outline: 'none', boxSizing: 'border-box' }} />
+                    <input type="date" value={reqDate} onChange={(e) => setReqDate(e.target.value)} required style={{ width: '100%', padding: '12px', border: 'none', background: inputBg, color: textSecondary, borderRadius: '8px', outline: 'none', boxSizing: 'border-box', colorScheme: isDarkMode ? 'dark' : 'light' }} />
                   </div>
                   <div>
                     <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', color: textPrimary, fontWeight: '600' }}>Responsável *</label>
-                    <select value={reqAssignee} onChange={(e) => setReqAssignee(e.target.value)} required style={{ width: '100%', padding: '12px', border: 'none', background: inputBg, color: textPrimary, borderRadius: '8px', outline: 'none', boxSizing: 'border-box', cursor: 'pointer' }}>
-                      <option value="">Selecione...</option>
-                      <option value={project?.user_email || user.email}>Dono do Projeto</option>
-                      {projectMembers.map(m => <option key={m.user_email} value={m.user_email}>{m.user_email.split('@')[0]}</option>)}
-                    </select>
+                    <Select 
+                      styles={{...customSelectStyles, control: base => ({...base, padding: '2px', minHeight: '40px', fontSize: '14px'})}} isSearchable={false} placeholder="Selecione..." menuPortalTarget={document.body} menuPosition="fixed"
+                      options={[{value: project?.user_email || user.email, label: 'Dono do Projeto'}, ...projectMembers.map(m => ({value: m.user_email, label: m.user_email.split('@')[0]}))]}
+                      value={{ value: reqAssignee, label: reqAssignee === (project?.user_email || user.email) ? 'Dono do Projeto' : (reqAssignee ? reqAssignee.split('@')[0] : 'Selecione...') }}
+                      onChange={(sel) => setReqAssignee(sel.value)}
+                    />
                   </div>
                 </div>
 
                 <div>
                   <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', color: textPrimary, fontWeight: '600' }}>Ambientes a serem capturados *</label>
-                  <div style={{ background: inputBg, padding: '15px', borderRadius: '8px', maxHeight: '150px', overflowY: 'auto', border: cardBorder }}>
+                  <div className="custom-scroll" style={{ background: inputBg, padding: '15px', borderRadius: '8px', maxHeight: '150px', overflowY: 'auto', border: cardBorder }}>
                     {floorPlans.map(plan => {
                       const targetsInPlan = projectTargets.filter(t => t.floor_plan_id === plan.id);
                       if (targetsInPlan.length === 0) return null;
@@ -1151,7 +1328,7 @@ useEffect(() => {
                   </div>
                 </div>
 
-                <button type="submit" style={{ width: '100%', padding: '14px', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '16px', marginTop: '10px' }}>
+                <button type="submit" style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg, #6f42c1 0%, #00d2ff 100%)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '16px', marginTop: '10px', boxShadow: '0 4px 15px rgba(111, 66, 193, 0.2)' }}>
                   Agendar Captura
                 </button>
               </form>
